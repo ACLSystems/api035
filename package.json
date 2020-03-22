@@ -1,0 +1,46 @@
+{
+  "name": "api035",
+  "version": "1.0.0",
+  "description": "api for webquid",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^0.19.2",
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.19.0",
+    "express": "^4.17.1",
+    "express-validator": "^6.4.0",
+    "helmet": "^3.21.3",
+    "http-status-codes": "^1.4.0",
+    "js-meter": "^1.1.4",
+    "jsonwebtoken": "^8.5.1",
+    "keypair": "^1.0.1",
+    "mongodb-uri": "^0.9.7",
+    "mongoose": "^5.9.4",
+    "mongoose-sequence": "^5.2.2",
+    "multer": "^1.4.2",
+    "node-mailjet": "^3.3.1",
+    "redis": "^3.0.2",
+    "socket.io": "^2.3.0",
+    "socket.io-emitter": "^3.1.1",
+    "socket.io-redis": "^5.2.0",
+    "winston": "^3.2.1",
+    "winston-daily-rotate-file": "^4.4.2"
+  },
+  "devDependencies": {
+    "dotenv": "^8.2.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "NODE_ENV=development nodemon -r dotenv/config index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ACLSystems/api035.git"
+  },
+  "author": "Arturo Castro",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ACLSystems/api035/issues"
+  },
+  "homepage": "https://github.com/ACLSystems/api035#readme"
+}

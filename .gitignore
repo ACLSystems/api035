@@ -88,6 +88,21 @@ dist
 # https://nextjs.org/blog/next-9-1#public-directory-support
 # public
 
+# Logs and databases
+
+/logs/*
+/ssl/*
+/data/*
+/bkp/*
+/test/*
+/sandbox/*
+/config/*
+/tests/*
+/local_scripts/*
+*.log
+*.sql
+*.sqlite
+
 # vuepress build output
 .vuepress/dist
 
