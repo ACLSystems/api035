@@ -70,6 +70,7 @@ module.exports = {
 						expiresIn,
 						algorithm: 'RS256'
 					};
+					// console.log(signOptions);
 					const token = await jwt.sign(payload, privateKey, signOptions);
 					const tokenDecoded = jwt.decode(token);
 					if(!user.admin.tokens || !Array.isArray(user.admin.tokens)) {

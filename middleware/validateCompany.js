@@ -6,6 +6,7 @@ const {
 	validationResult
 } 	= require('express-validator');
 const StatusCodes = require('http-status-codes');
+const Tools = require('../shared/toolsValidate');
 
 module.exports = {
 	create: [
@@ -19,13 +20,13 @@ module.exports = {
 			})
 			.withMessage('Identificador debe ser un RFC válido')
 			.custom(async function(value) {
-				return checkCompany('identifier',value,'Identificador de compañía ya este. Favor de validar');
+				return await Tools.checkCompanyExistence('identifier',value,'Identificador de compañía ya este. Favor de validar');
 			}),
 		body('name')
 			.exists()
 			.withMessage('Nombre "name" de la empresa es requerido')
 			.custom(async function(value) {
-				return checkCompany('name',value,'Nombre de empresa ya este. Favor de validar');
+				return await Tools.checkCompany('name',value,'Nombre de empresa ya este. Favor de validar');
 			})
 	],
 	read: [
@@ -45,14 +46,14 @@ module.exports = {
 			.isMongoId()
 			.withMessage('headUser debe ser un id válido')
 			.custom(async (value) => {
-				return checkUser(value,'headUser id no corresponde a un usuario existente');
+				return await Tools.checkUser(value,'headUser id no corresponde a un usuario existente');
 			}),
 		body('primeUser')
 			.optional()
 			.isMongoId()
 			.withMessage('primeUser debe ser un id válido')
 			.custom(async (value) => {
-				return checkUser(value,'primeUser id no corresponde a un usuario existente');
+				return await Tools.checkUser(value,'primeUser id no corresponde a un usuario existente');
 			})
 	],
 	results(req,res,next){
@@ -68,26 +69,26 @@ module.exports = {
 	}
 };
 
-async function checkCompany(key,value,message) {
-	const Company = require('../src/companies');
-	const company = await Company.findOne({key: value})
-		.select('_id')
-		.lean();
-	if(company) {
-		throw new Error(message);
-	} else {
-		return true;
-	}
-}
+// async function checkCompany(key,value,message) {
+// 	const Company = require('../src/companies');
+// 	const company = await Company.findOne({key: value})
+// 		.select('_id')
+// 		.lean();
+// 	if(company) {
+// 		throw new Error(message);
+// 	} else {
+// 		return true;
+// 	}
+// }
 
-async function checkUser(user, message) {
-	const User = require('../src/users');
-	var userFound = await User.findById(user)
-		.select('id')
-		.lean();
-	if(!userFound) {
-		throw new Error(message);
-	} else {
-		return true;
-	}
-}
+// async function checkUser(user, message) {
+// 	const User = require('../src/users');
+// 	var userFound = await User.findById(user)
+// 		.select('id')
+// 		.lean();
+// 	if(!userFound) {
+// 		throw new Error(message);
+// 	} else {
+// 		return true;
+// 	}
+// }

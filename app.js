@@ -17,6 +17,7 @@ app.on('ready',() => {
 	const companyRoutes = require('./routes/companyRoutes');
 	const configRoutes = require('./routes/configRoutes');
 	const publicityRoutes = require('./routes/publicityRoutes');
+	const serviceRoutes = require('./routes/servicesRoutes');
 
 	app.disable('x-powered-by');
 	/** Encabezados CORS */
@@ -45,6 +46,7 @@ app.on('ready',() => {
 	companyRoutes(app);
 	configRoutes(app);
 	publicityRoutes(app);
+	serviceRoutes(app);
 
 	app.use(function(req, res) {
 		res.status(StatusCodes.NOT_FOUND).json({

@@ -6,6 +6,7 @@ const {
 	validationResult
 } 	= require('express-validator');
 const StatusCodes = require('http-status-codes');
+const Tools = require('../shared/toolsValidate');
 
 module.exports = {
 	logout: [
@@ -17,17 +18,17 @@ module.exports = {
 		body('identifier').exists().withMessage('Identificador es obligatorio').custom(value => {
 			return value.match(/^([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])$/);
 		}).withMessage('Identificador debe ser un RFC válido').custom(async function(value) {
-			return checkIdentifier(value);
+			return Tools.checkIdentifier(value);
 		}),
 		body('person.email')
 			.optional()
 			.custom(async function(value){
-				return checkEmail(value);
+				return Tools.checkEmail(value);
 			}),
 		body('companies')
 			.optional()
 			.custom(async function(value){
-				return checkCompany(value);
+				return Tools.checkCompany(value);
 			})
 	],
 	read:[
@@ -43,13 +44,13 @@ module.exports = {
 		body('identifier').optional().custom(value => {
 			return value.match(/^([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])$/);
 		}).withMessage('Identificador debe ser un RFC válido').custom(async function(value) {
-			return checkIdentifier(value);
+			return await Tools.checkIdentifier(value);
 		}),
 		body('person.email').optional().custom(async function(value){
-			return checkEmail(value);
+			return await Tools.checkEmail(value);
 		}),
 		body('companies').optional().isMongoId('ID de compañía no es un id válido').custom(async function(value){
-			return checkCompany(value);
+			return await Tools.checkCompany(value);
 		})
 	],
 	results(req,res,next){
@@ -64,54 +65,3 @@ module.exports = {
 		}
 	}
 };
-
-
-async function checkIdentifier(value) {
-	const User = require('../src/users');
-	const user = await User.findOne({identifier: value})
-		.select('_id')
-		.lean();
-	if(user) {
-		throw new Error('Identificador ya existe. Favor de validar');
-	} else {
-		return true;
-	}
-}
-
-async function checkEmail(value) {
-	const User = require('../src/users');
-	const user = await User.findOne({'person.email': value})
-		.select('_id')
-		.lean();
-	if(user) {
-		throw new Error('Otro usuario ya utiliza el correo definido. Favor de revisar');
-	} else {
-		return true;
-	}
-}
-
-async function checkCompany(value) {
-	if(Array.isArray(value) && value.length > 0) {
-		const Company = require('../src/companies');
-		const mongoose = require('mongoose');
-		for(var i=0; i < value.length; i++) {
-			if(value[i] && value[i].company) {
-				if(!mongoose.Types.ObjectId.isValid(value[i].company)) {
-					throw new Error('ID de compañía no es un id válido');
-				}
-				var company = await Company.findById(value[i].company)
-					.select('id')
-					.lean();
-				if(!company) {
-					throw new Error('ID de compañía no existe');
-				} else {
-					return true;
-				}
-			} else {
-				throw new Error('No se indicó ID de compañía');
-			}
-		}
-	} else {
-		return true;
-	}
-}

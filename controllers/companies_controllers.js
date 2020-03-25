@@ -61,7 +61,7 @@ module.exports = {
 		if(isOperator) {
 			const company = keyUser.companies.find(com => com.company._id + '' === req.params.companyid + '');
 			if(company) {
-				console.log('desde el keyUser');
+				// console.log('desde el keyUser');
 				res.status(StatusCodes.OK).json(company);
 			} else {
 				try {
@@ -130,17 +130,6 @@ module.exports = {
 				.sort({identifier: 'asc'})
 				.lean();
 			if(companies && companies.length > 0) {
-				companies.forEach(com => {
-					if(com.addresses.length === 0) {
-						com.addresses = 'Empresa no tiene definidas direcciones';
-					}
-					if(com.alias.length === 0) {
-						com.alias = 'Empresa no tiene definidas sobrenombres (alias)';
-					}
-					if(com.phone.length === 0) {
-						com.phone = 'Empresa no tiene definidos números de teléfono';
-					}
-				});
 				res.status(StatusCodes.OK).json(companies);
 				return;
 			} else {
@@ -220,18 +209,6 @@ module.exports = {
 			var companyToSend = company.toObject();
 			delete companyToSend.history;
 			delete companyToSend.__v;
-			if(companyToSend.alias && Array.isArray(companyToSend.alias) && companyToSend.alias.length === 0) {
-				companyToSend.alias = 'Usuario no tiene sobrenombres definidos';
-			}
-			if(companyToSend.phone && Array.isArray(companyToSend.phone) && companyToSend.phone.length === 0) {
-				companyToSend.phone = 'Usuario no tiene teléfonos definidos';
-			}
-			if(!companyToSend.headUser) {
-				companyToSend.headUser = 'Empresa no tiene director definido';
-			}
-			if(!companyToSend.primeUser) {
-				companyToSend.headUser = 'Empresa no tiene usuario principal definido';
-			}
 			if(companyToSend.addresses && Array.isArray(companyToSend.addresses) && companyToSend.addresses.length === 0) {
 				companyToSend.addresses = 'Empresa no tiene direcciones asociadas';
 			}

@@ -6,6 +6,7 @@ const {
 	validationResult
 } 	= require('express-validator');
 const StatusCodes = require('http-status-codes');
+const Tools = require('../shared/toolsValidate');
 
 module.exports = {
 	create: [
@@ -24,13 +25,18 @@ module.exports = {
 		body('endDate')
 			.optional()
 			.custom(value => {
-				console.log('validDate: ',validDate(value));
+				// console.log('validDate: ',validDate(value));
 				if(!validDate(value)) {
 					throw new Error();
 				}
 				return true;
 			})
-			.withMessage('Fecha no reconocible')
+			.withMessage('Fecha no reconocible'),
+		body('companies')
+			.optional()
+			.custom(async function(value){
+				return await Tools.checkCompany(value);
+			})
 	],
 	read: [
 		param('publicityid')

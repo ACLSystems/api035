@@ -107,7 +107,8 @@ module.exports = {
 			return res.status(StatusCodes.OK).json({
 				token,
 				iat: tokenDecoded.iat,
-				exp: tokenDecoded.exp
+				exp: tokenDecoded.exp,
+				roles: user.roles
 			});
 		} catch (e) {
 			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -198,7 +199,7 @@ module.exports = {
 			delete user.roles;
 			delete user.admin;
 			delete user.history;
-			res.status(StatusCodes.CREATED).json(user);
+			return res.status(StatusCodes.CREATED).json(user);
 		} catch (e) {
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
@@ -222,19 +223,7 @@ module.exports = {
 		if(!keyUser.isOperator) {
 			delete keyUser.assignedCompanies;
 		}
-		if((Array.isArray(keyUser.phone) && keyUser.phone.length === 0) || !keyUser.phone) {
-			keyUser.phone = 'No hay teléfonos definidos';
-		}
-		if(Array.isArray(keyUser.addresses) && keyUser.addresses.length === 0) {
-			keyUser.addresses = 'No hay direcciones definidas';
-		}
 		res.status(StatusCodes.OK).json(keyUser);
-		// const meter = m.stop();
-		// console.log(meter);
-		// const used = process.memoryUsage();
-		// for(let key in used) {
-		// 	console.log(`${key} ${Math.round(used[key] / 1024 / 1024 * 100) / 100} MB`);
-		// }
 	}, //getMyDetails
 
 	async read(req,res) {
@@ -257,15 +246,6 @@ module.exports = {
 				})
 				.lean();
 			if(user) {
-				if(Array.isArray(user.companies) && user.companies.length === 0) {
-					user.companies = 'Usuario no tiene empresas asociadas';
-				}
-				if(Array.isArray(user.addresses) && user.addresses.length === 0) {
-					user.addresses = 'Usuario no tiene direcciones asociadas';
-				}
-				if(!user.person) {
-					user.person = 'Usuario no tiene definidos datos de su persona';
-				}
 				if(isSupervisor) {
 					if(checkCompanies(keyUser.companies,user.companies)) {
 						return res.status(StatusCodes.OK).json(user);
@@ -388,20 +368,9 @@ module.exports = {
 				})
 				.lean();
 			if(Array.isArray(users) && users.length > 0) {
-				users.forEach(user => {
-					if(Array.isArray(user.companies) && user.companies.length === 0) {
-						user.companies = 'Usuario no tiene empresas asociadas';
-					}
-					if(Array.isArray(user.addresses) && user.addresses.length === 0) {
-						user.addresses = 'Usuario no tiene direcciones asociadas';
-					}
-					if(!user.person) {
-						user.person = 'Usuario no tiene definidos datos de su persona';
-					}
-				});
 				return res.status(StatusCodes.OK).json(users);
 			}
-			res.status(StatusCodes.OK).json({
+			return res.status(StatusCodes.OK).json({
 				'message': 'La búsqueda no arrojó usuarios'
 			});
 		} catch (e) {
@@ -475,9 +444,7 @@ module.exports = {
 			delete userToSend.isAccountable;
 			delete userToSend.roles;
 			delete userToSend.__v;
-			if(userToSend.companies && Array.isArray(userToSend.companies) && userToSend.companies.length === 0) {
-				userToSend.companies = 'Usuario no tiene empresas asociadas';
-			} else {
+			if(userToSend.companies && Array.isArray(userToSend.companies) && userToSend.companies.length > 0) {
 				const Company = require('../src/companies');
 				var companiesToFind = userToSend.companies.map(com => com.company);
 				var companies = await Company.find({
@@ -495,13 +462,7 @@ module.exports = {
 					userToSend.companies = companies;
 				}
 			}
-			if(!userToSend.person) {
-				userToSend.person = 'Usuario no tiene definidos datos de su persona';
-			}
-			if(userToSend.addresses && Array.isArray(userToSend.addresses) && userToSend.addresses.length === 0) {
-				userToSend.addresses = 'Usuario no tiene direcciones asociadas';
-			}
-			res.status(StatusCodes.OK).json(userToSend);
+			return res.status(StatusCodes.OK).json(userToSend);
 		} catch (e) {
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',

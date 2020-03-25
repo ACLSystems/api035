@@ -28,7 +28,7 @@ module.exports = {
 					company: comp
 				};
 			});
-			console.log(req.body.companies);
+			// console.log(req.body.companies);
 		}
 		try {
 			const publicity = new Publicity(req.body);
