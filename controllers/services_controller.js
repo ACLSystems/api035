@@ -24,7 +24,7 @@ module.exports = {
 		} catch (e) {
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				'error': e
 			});
 		}
 	}, //create

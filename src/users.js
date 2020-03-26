@@ -21,6 +21,12 @@ const PersonSchema = new Schema({
 	genre: {
 		type: String,
 		enum: ['Hombre', 'Mujer']
+	},
+	imss: {
+		type: Number
+	},
+	curp: {
+		type: String
 	}
 },{_id: false});
 
@@ -82,6 +88,24 @@ const CompaniesSchema = new Schema({
 	company: {
 		type: ObjectId,
 		ref: 'companies'
+	},
+	employeeId: {
+		type: String
+	},
+	jobTitle: {
+		type: String
+	},
+	jobRisk: {
+		type: String
+	},
+	department: {
+		type: String
+	},
+	beginDate: {
+		type: Date
+	},
+	dailySalary: {
+		type: Number
 	}
 },{_id: false});
 

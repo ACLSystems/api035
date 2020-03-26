@@ -190,7 +190,31 @@ module.exports = {
 					'user': userFound
 				});
 			}
+			const securePass = require('secure-random-password');
 			const user = new User(req.body);
+			const keys = Object.keys(req.body);
+			if(!keys.includes('password')) {
+				user.password = securePass.randomPassword({
+					length: 12,
+					characters: [{
+						characters: securePass.upper,
+						exactly: 4
+					},{
+						characters: securePass.symbols,
+						exactly: 2
+					},{
+						characters: securePass.digits,
+						exactly: 2
+					},
+					securePass.lower
+					]
+				});
+				if(!this.admin) {
+					this.admin = {
+						initialPassword: this.password
+					};
+				}
+			}
 			user.history = [{
 				by: keyUser._id,
 				what: 'Creación del usuario'

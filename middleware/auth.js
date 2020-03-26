@@ -38,7 +38,6 @@ module.exports = {
 					path: 'companies.company',
 					select: ('isActive name display identifier')
 				});
-
 			if(!user) {
 				return res.status(StatusCodes.NOT_FOUND).json({
 					'message': 'El usuario y/o password no son correctos'

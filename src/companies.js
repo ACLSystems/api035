@@ -21,7 +21,7 @@ const CompanySchema = new Schema ({
 	freshid: String,
 	type: {
 		type: String,
-		enum: ['interna', 'cliente'],
+		enum: ['interna', 'pagadora', 'cliente'],
 		default: 'cliente'
 	},
 	headUser: {
@@ -31,6 +31,13 @@ const CompanySchema = new Schema ({
 	primeUser: {
 		type: ObjectId,
 		ref: 'users'
+	},
+	taxRegime: {
+		type: ObjectId,
+		ref: 'taxregimes'
+	},
+	employerRegistration: {
+		type: String
 	},
 	display: String,
 	alias: [String],
