@@ -17,6 +17,13 @@ module.exports = {
 				what: 'Creación del registro'
 			}];
 			await taxRegime.save();
+			var regimeToSend = taxRegime.toObject();
+			delete regimeToSend.history;
+			delete regimeToSend.__v;
+			return res.status(StatusCodes.OK).json({
+				'message': 'Régimen creado',
+				'regime': regimeToSend
+			});
 		} catch (e) {
 			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({

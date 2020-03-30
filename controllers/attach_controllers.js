@@ -3,144 +3,241 @@ const Attachment 	= require('../src/attachments');
 const Company 		= require('../src/companies');
 const TaxRegime 	= require('../src/taxRegimes');
 const User				= require('../src/users');
+const Secure 			= require('../shared/secure');
+const DocType 		= require('../parsers/cfdi');
 
 module.exports = {
 
-	async create(req,res) {
+	async loadCFDI(req,res) {
 		const keyUser = res.locals.user;
-		/*
-			Esta sección validará los datos que se envían de usuarios y compañía. Si no existen manda error.
-		*/
-		if(req.body.kind && req.body.kind !== 'companies' && req.body.kind !== 'users') {
-			return res.status(StatusCodes.OK).json({
-				'message': `El campo kind: ${req.body.kind} tiene un valor no reconocido`
-			});
-		}
-		if(req.body.kind === 'companies') {
-			const company = await Company.findById(req.body.item);
-			if(!company){
-				return req.status(StatusCodes.OK).json({
-					'message': 'El valor de "item" no corresponde con una empresa existente. kind = "companies"'
-				});
-			}
-		}
-		if(req.body.kind === 'users') {
-			const User = require('../src/users');
-			const user = await User.findById(req.body.item);
-			if(!user){
-				return req.status(StatusCodes.OK).json({
-					'message': 'El valor de "item" no corresponde con un usuario existente. kind = "users"'
-				});
-			}
-		}
 		/*
 		La siguiente sección validará si los datos del usuario y la compañía existen. De lo contrario hay que crearlas.
 		*/
-		try {
-			var data = new Attachment(req.body);
-			data.history = [{
-				by: keyUser._id,
-				what: 'Creación del documento'
-			}];
-			if(data.type === 'data' && data.data) {
-				if(!data.kind) {
-					const xml2json = require('xml2json');
-					const buffer = Buffer.from(req.body.data,'base64');
-					const data = JSON.parse(xml2json.toJson(buffer.toString('utf-8')));
-					const keys = Object.keys(data['cfdi:Comprobante']);
-					if(keys.includes('xmlns:nomina12')) {
-						const comprobante = data['cfdi:Comprobante'];
-						data.documentType = 'xmlns:nomina12';
-						var emitter = await Company.findOne({identifier: comprobante['cfdi:Emisor']['Rfc']});
-						const taxRegime = await TaxRegime.findOne({taxRegime: +comprobante['cfdi:Emisor']['RegimenFiscal']})
-							.select('_id');
-						if(!emitter) {
-							emitter = new Company({
-								identifier: comprobante['cfdi:Emisor']['Rfc'] || undefined,
-								name: comprobante['cfdi:Emisor']['Nombre'] || undefined,
-								display: comprobante['cfdi:Emisor']['Nombre'] || undefined,
-								taxRegime: taxRegime._id || undefined,
+		var emisorCreated = false;
+		var subhireCreated = false;
+		var userCreated = false;
+		var dataCreated = false;
+		if(req.body.type === 'data' &&
+		(req.body.mimeType === 'application/xml' ||
+		req.body.mimeType === 'text/xml')
+		){
+			if(!req.body.company && !req.body.user) {
+				const xml2json = require('xml2json');
+				const buffer = Buffer.from(req.body.data,'base64');
+				const docData = JSON.parse(xml2json.toJson(buffer.toString('utf-8')));
+
+				const doc = DocType.cfdi(docData);
+				// return res.status(StatusCodes.OK).json(doc);
+				try {
+					var data = await Attachment.findOne({documentNumber: doc.noCertificado})
+						.select('-id');
+					if(data) {
+						return res.status(StatusCodes.OK).json({
+							'message': 'Documento previamente cargado',
+							'emisorCreated': emisorCreated,
+							'subhireCreated': subhireCreated,
+							'userCreated': userCreated,
+							'dataCreated': dataCreated
+						});
+					}
+					data = new Attachment({
+						data: req.body.data,
+						type: 'data',
+						mimeType: req.body.mimeType,
+						documentNumber: doc.noCertificado,
+						history: [{
+							by: keyUser._id,
+							what: 'Carga de documento'
+						}]
+					});
+					if(doc.cfdi) {
+						data.documentType = 'cfdi';
+					}
+					if(doc.complemento && doc.complemento.nomina12 && doc.complemento.nomina12.nomina12) {
+						data.subDocumentType = 'nomina12';
+					}
+					// buscar emisor
+					var emisor = await Company.findOne({identifier: doc.emisor.rfc});
+					const taxRegime = await TaxRegime.findOne({taxRegime: +doc.emisor.regimenFiscal})
+						.select('_id');
+					var pleaseSaveEmisor = false;
+					if(!emisor) {
+						if(doc.emisor && doc.emisor.rfc) {
+							emisor = new Company({
+								identifier: doc.emisor.rfc,
+								name: (doc.emisor && doc.emisor.nombre) ? doc.emisor.nombre : undefined,
+								display: (doc.emisor && doc.emisor.nombre) ? doc.emisor.nombre : undefined,
+								taxRegime: (taxRegime && taxRegime._id) ? taxRegime._id : undefined,
 								type: 'pagadora',
-								employerRegistration: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Emisor']['RegistroPatronal'] || undefined
+								employerRegistration: (doc.complemento && doc.complemento.nomina12 && doc.complemento.nomina12.emisor && doc.complemento.nomina12.emisor.registroPatronal) ? doc.complemento.nomina12.emisor.registroPatronal : undefined,
+								history: [{
+									by: keyUser._id,
+									what: 'Creación de la empresa mediante cfdi'
+								}]
 							});
-							emitter.history = [{
-								by: keyUser._id,
-								what: 'Creación de la empresa mediante documento'
-							}];
-							await emitter.save();
-						} else {
-							if(!emitter.taxRegime) {
-								emitter.taxRegime = taxRegime._id;
-							}
-							if(!emitter.employerRegistration) {
-								emitter.employerRegistration = comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Emisor']['RegistroPatronal'];
-							}
+							emisorCreated = true;
+							pleaseSaveEmisor = true;
 						}
-						var subhire = await Company.findOne({identifier: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['nomina12:SubContratacion']['RfcLabora']});
+					} else {
+						if(!emisor.taxRegime) {
+							emisor.taxRegime = taxRegime._id;
+							pleaseSaveEmisor = true;
+						}
+						if(!emisor.employerRegistration) {
+							emisor.employerRegistration = (doc.complemento && doc.complemento.nomina12 && doc.complemento.nomina12.emisor && doc.complemento.nomina12.emisor.registroPatronal) ? doc.complemento.nomina12.emisor.registroPatronal : undefined;
+							pleaseSaveEmisor = true;
+						}
+					}
+					if(pleaseSaveEmisor){
+						await emisor.save();
+					}
+					//buscar subhire
+					var subhire = false;
+					if(doc.complemento && doc.complemento.nomina12 && doc.complemento.nomina12.receptor && doc.complemento.nomina12.receptor.subContratacion && doc.complemento.nomina12.receptor.subContratacion.rfcLabora) {
+						const sub = doc.complemento.nomina12.receptor.subContratacion;
+						subhire = await Company.findOne({identifier: sub.rfcLabora});
 						if(!subhire) {
 							subhire = new Company({
-								name: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['nomina12:SubContratacion']['RfcLabora'],
-								identifier: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['nomina12:SubContratacion']['RfcLabora']
+								identifier: sub.rfcLabora,
+								name: sub.rfcLabora,
+								type: 'cliente',
+								history: [{
+									by: keyUser._id,
+									what: 'Creación de la empresa mediante cfdi'
+								}]
 							});
-							subhire.history = [{
-								by: keyUser._id,
-								what: 'Creación de la empresa mediante documento'
-							}];
+							subhireCreated = true;
 							await subhire.save();
 						}
-						var user = await User.findOne({identifier: comprobante['cfdi:Receptor']['Rfc']});
-						if(!user) {
-							const securePass = require('secure-random-password');
-							const names = comprobante['cfdi:Receptor']['Nombre'].split(' ');
-							user = new User({
-								identifier: comprobante['cfdi:Receptor']['Rfc'],
-								companies: [{
-									isActive: true,
-									company: subhire._id,
-									employeeId: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['NumEmpleado'] || undefined,
-									jobTitle: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['Puesto'] || undefined,
-									jobRisk: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['RiesgoPuesto'] || undefined,
-									department: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['Departamento'] || undefined,
-									beginDate: new Date(comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['FechaInicioRelLaboral']),
-									dailySalary: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['SalarioDiarioIntegrado'] || undefined
-								}],
-								person: {
-									name: name.slice(0,-2),
-									fatherName: name.slice(-2,-1),
-									motherName: names.slice(-1),
-									imss: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['NumSeguridadSocial'] || undefined,
-									curp: comprobante['cfdi:Complemento']['nomina12:Nomina']['nomina12:Receptor']['Curp'] || undefined
-								}
-							});
-							user.password = securePass.randomPassword({
-								length: 12,
-								characters: [{
-									characters: securePass.upper,
-									exactly: 4
-								},{
-									characters: securePass.symbols,
-									exactly: 2
-								},{
-									characters: securePass.digits,
-									exactly: 2
-								},
-								securePass.lower
-								]
-							});
-							user.admin = {
-								initialPassword: user.password
-							};
-							await user.save();
-						}
-						data.kind = 'users';
-						data.item = user._id;
-						data.referenceDate = new Date(comprobante['cfdi:Complemento']['nomina12:Nomina']['fechaPago']);
 					}
+					var pleaseSaveUser = false;
+					var user = await User.findOne({identifier: doc.receptor.rfc});
+					const receptor = (doc.complemento && doc.complemento.nomina12 && doc.complemento.nomina12.receptor) ? doc.complemento.nomina12.receptor : false;
+					var userCompany = {
+						isActive: true,
+						company: subhire._id,
+						employeeId: receptor ? receptor.numEmpleado : undefined,
+						jobTitle: receptor ? receptor.puesto : undefined,
+						jobRisk: receptor ? receptor.riesgoPuesto : undefined,
+						department: receptor ? receptor.departamento : undefined,
+						beginDate: receptor ? new Date(receptor.fechaInicioRelLaboral) : undefined,
+						dailySalary: receptor ? receptor.salarioDiarioIntegrado : undefined
+					};
+					if(!user) {
+						const name = doc.receptor.nombre.split(' ');
+						user = new User({
+							identifier: doc.receptor.rfc,
+							person: {
+								name: name.slice(0,-2).join(' '),
+								fatherName: name.slice(-2,-1).join(''),
+								motherName: name.slice(1).join(''),
+								imss: receptor ? receptor.numSeguridadSocial : undefined,
+								curp: receptor ? receptor.curp : undefined
+							}
+						});
+						if(subhire) {
+							user.companies = [userCompany];
+						}
+						user.password = Secure.createSecurePass();
+						user.admin = {
+							initialPassword: user.password
+						};
+						userCreated = true;
+						pleaseSaveUser = true;
+					} else {
+						var findCompany = user.companies.find(comp => comp.company + '' === subhire._id + '');
+						if(!findCompany) {
+							if(user.companies && Array.isArray(user.companies)) {
+								user.companies.push(userCompany);
+							} else {
+								user.companies = [userCompany];
+							}
+							pleaseSaveUser = true;
+						}
+					}
+					if(pleaseSaveUser) {
+						await user.save();
+					}
+					data.company = subhire._id;
+					data.user = user._id;
+					dataCreated = true;
+					await data.save();
+					return res.status(StatusCodes.CREATED).json({
+						'message': 'Documento cargado',
+						'emisorCreated': emisorCreated,
+						'subhireCreated': subhireCreated,
+						'userCreated': userCreated,
+						'dataCreated': dataCreated
+					});
+				} catch (e) {
+					console.log(e);
+					res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+						'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
+						error: e
+					});
 				}
 			}
-			await data.save();
-			return res.status(StatusCodes.CREATED).json({
-				'message': 'Documento cargado'
+		}
+		// Falta validar de archivos de otro tipo
+		// await data.save();
+	}, //create
+
+	// Este API solo sacará una lista de documentos, pero no los documentos en sí
+	// la idea es que en el siguiente API se obtenga el documento mediante el id
+	async search(req,res) {
+		const keyUser = res.locals.user;
+		var query = Object.assign({},req.query);
+		// Checar qué usuario es el que quiere consultar
+		if(!query.user && !query.company) {
+			query.user = keyUser._id;
+		}
+		const operatorCompanies = keyUser.assignedCompanies.filter(comp => comp.isActive).map(comp => comp.company._id + '');
+		if(keyUser.roles.isOperator &&
+			!keyUser.roles.isAdmin &&
+			!keyUser.roles.isTechAdmin &&
+			!keyUser.roles.isBillAdmin
+		){
+			if(query.company) {
+				if(!operatorCompanies.includes(req.query.company)) {
+					return res.status(StatusCodes.OK).json({
+						'message': 'No se encontraron documentos con ese criterio de búsqueda'
+					});
+				}
+			} else {
+				query.company = {
+					$in: operatorCompanies
+				};
+			}
+		}
+		var date;
+		if(query.date) {
+			if(query.date.includes('-')) {
+				let parts = query.date.split('-');
+				date = new Date(parts[0], parts[1] - 1, parts[2]);
+			} else if(query.date.includes('/')) {
+				let parts = query.date.split('/');
+				date = new Date(parts[0], parts[1] - 1, parts[2]);
+			} else {
+				date = new Date(query.date);
+			}
+		} else {
+			date = new Date();
+		}
+		var beginDate = new Date(date.getFullYear(), date.getMonth(), 1);
+		var endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+		query.referenceDate = {
+			$gte: beginDate,
+			$lte: endDate
+		};
+		delete query.date;
+		try {
+			const docs = await Attachment.find(query)
+				.select('type documentType documentNumber company user created updated referenceDate');
+			if(docs.length > 0) {
+				return res.status(StatusCodes.OK).json(docs);
+			}
+			return res.status(StatusCodes.OK).json({
+				'message': 'No se encontraron documentos con ese criterio de búsqueda'
 			});
 		} catch (e) {
 			console.log(e);
@@ -149,5 +246,135 @@ module.exports = {
 				error: e
 			});
 		}
-	}
+	}, //search
+
+	async get(req,res) {
+		const keyUser = res.locals.user;
+		try {
+			var doc = await Attachment.findById(req.params.attachid)
+				.select('company user');
+			if(!doc) {
+				return res.status(StatusCodes.OK).json({
+					'message': 'No existe documento'
+				});
+			}
+			// usuario no tiene roles
+			if(!Secure.checkPrivileges(keyUser,[
+				'isAdmin',
+				'isOperator',
+				'isSupervisor',
+				'isTechAdmin',
+				'isBillAdmin'])) {
+				if(doc.user + '' !== keyUser._id) {
+					return res.status(StatusCodes.FORBIDDEN).json({
+						'message': 'No tienes privilegios'
+					});
+				}
+				doc = await Attachment.findById(doc._id)
+					.select('attachment data mimeType type documentType documentNumber referenceDate');
+				if(!doc) {
+					return res.status(StatusCodes.OK).json({
+						'message': 'No existe documento'
+					});
+				}
+				return res.status(StatusCodes.OK).json(doc);
+			}
+			// Es algún admin?
+			if(Secure.checkPrivileges(keyUser, ['isAdmin',
+				'isTechAdmin',
+				'isBillAdmin'])) {
+				doc = await Attachment.findById(doc._id)
+					.select('attachment data mimeType type documentType documentNumber referenceDate company user created updated')
+					.populate([{
+						path: 'company',
+						select: 'identifier display alias'
+					},{
+						path: 'user',
+						select: 'identifier person'
+					}]);
+				if(!doc) {
+					return res.status(StatusCodes.OK).json({
+						'message': 'No existe documento'
+					});
+				}
+				return res.status(StatusCodes.OK).json(doc);
+			} else {
+				// Entonces es algún operador o un supervisor
+				const operatorCompanies = keyUser.assignedCompanies.filter(comp => comp.isActive).map(comp => comp.company._id + '');
+				if(!operatorCompanies.includes(doc.company + '')) {
+					return res.status(StatusCodes.OK).json({
+						'message': 'No tiene privilegios sobre el documento'
+					});
+				}
+				doc = await Attachment.findById(doc._id)
+					.select('attachment data mimeType type documentType documentNumber referenceDate company user created updated')
+					.populate([{
+						path: 'company',
+						select: 'identifier display alias'
+					},{
+						path: 'user',
+						select: 'identifier person'
+					}]);
+				if(!doc) {
+					return res.status(StatusCodes.OK).json({
+						'message': 'No existe documento'
+					});
+				}
+				return res.status(StatusCodes.OK).json(doc);
+			}
+		} catch (e) {
+			console.log(e);
+			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
+				error: e
+			});
+		}
+	}, //get
 };
+//
+// async function createCompany(
+// 	name = undefined,
+// 	identifier,
+// 	freshid = undefined,
+// 	type = 'cliente',
+// 	headUser = undefined,
+// 	primeUser = undefined,
+// 	display = undefined,
+// 	taxRegime = undefined,
+// 	employerRegistration = undefined,
+// 	user,
+// 	what = 'Creación de empresa'
+// ) {
+// 	if(!identifier) {
+// 		throw new Error('identifier es requerido');
+// 	}
+// 	if(!user) {
+// 		throw new Error('user es requerido');
+// 	}
+// 	if(!user.roles) {
+// 		throw new Error('Usuario no tiene roles');
+// 	}
+// 	if(!Secure.checkPrivileges(user,[
+// 		'isAdmin',
+// 		'isTechAdmin',
+// 		'isBillAdmin',
+// 		'isOperator'
+// 	])) {
+// 		throw new Error('No tienes privilegios');
+// 	}
+// 	var company = new Company({
+// 		name,
+// 		identifier,
+// 		freshid,
+// 		type,
+// 		headUser,
+// 		primeUser,
+// 		taxRegime,
+// 		employerRegistration,
+// 		display,
+// 	});
+// 	company.history = [{
+// 		by: user._id,
+// 		what
+// 	}];
+// }

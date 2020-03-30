@@ -19,6 +19,7 @@ app.on('ready',() => {
 	const publicityRoutes = require('./routes/publicityRoutes');
 	const serviceRoutes = require('./routes/servicesRoutes');
 	const attachmentRoutes = require('./routes/attachmentRoutes');
+	const taxRegimeRoutes = require('./routes/taxRegimeRoutes');
 
 	app.disable('x-powered-by');
 	/** Encabezados CORS */
@@ -49,6 +50,7 @@ app.on('ready',() => {
 	publicityRoutes(app);
 	serviceRoutes(app);
 	attachmentRoutes(app);
+	taxRegimeRoutes(app);
 
 	app.use(function(req, res) {
 		res.status(StatusCodes.NOT_FOUND).json({

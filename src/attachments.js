@@ -12,6 +12,9 @@ const AttachmentSchema = new Schema ({
 	data: {
 		type: String
 	},
+	mimeType: {
+		type: String
+	},
 	type: {
 		type: String,
 		enum: ['attachment', 'data']
@@ -19,14 +22,29 @@ const AttachmentSchema = new Schema ({
 	documentType: {
 		type: String
 	},
-	kind: {
-		type: String,
-		required: [true, '"kind" (tipo de referencia) es requerido. Ejemplo: "users", "companies"']
+	subDocumentType: {
+		type: String
 	},
-	item: {
+	documentNumber: {
+		type: String
+	},
+	// kind: {
+	// 	type: String,
+	// 	required: [true, '"kind" (tipo de referencia) es requerido. Ejemplo: "users", "companies"']
+	// },
+	// item: {
+	// 	type: ObjectId,
+	// 	refPath: 'kind',
+	// 	required: [true, '"item" es requerido. Este es el ID del elemento referido (usuario, compañía) Ejemplo: "9A238C318A102312301"']
+	// },
+	company: {
 		type: ObjectId,
-		refPath: 'kind',
-		required: [true, '"item" es requerido. Este es el ID del elemento referido (usuario, compañía) Ejemplo: "9A238C318A102312301"']
+		ref: 'companies',
+		required: [true, '"company" es requerido']
+	},
+	user: {
+		type: ObjectId,
+		ref: 'users'
 	},
 	created: {
 		type: Date,
@@ -44,8 +62,12 @@ const AttachmentSchema = new Schema ({
 
 module.exports = AttachmentSchema;
 
-AttachmentSchema.index({kind: 1});
-AttachmentSchema.index({item: 1});
+AttachmentSchema.index({user					: 1},{sparse: true});
+AttachmentSchema.index({company				: 1});
+AttachmentSchema.index({referenceDate	: 1});
+AttachmentSchema.index({mimeType			: 1},{sparse: true});
+AttachmentSchema.index({documentType	: 1},{sparse: true});
+AttachmentSchema.index({subDocumentType	: 1},{sparse: true});
 
 
 const Attachment = mongoose.model('attachments', AttachmentSchema);

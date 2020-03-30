@@ -13,7 +13,8 @@ const TaxRegimeSchema = new Schema ({
 	},
 	taxRegime: {
 		type: Number,
-		required: true
+		required: true,
+		unique: true
 	},
 	description: {
 		type: String,
