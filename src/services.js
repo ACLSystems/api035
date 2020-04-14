@@ -35,6 +35,10 @@ const ServiceSchema = new Schema({
 	icon: {
 		type: String
 	},
+	code: {
+		type: String,
+		required: true
+	},
 	iconColor: {
 		type: String
 	},

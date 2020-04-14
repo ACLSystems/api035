@@ -29,9 +29,10 @@ module.exports = {
 			await company.save();
 			res.status(StatusCodes.CREATED).json(company);
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //create
@@ -76,9 +77,10 @@ module.exports = {
 						'message': 'No hay empresa con el id especificado'
 					});
 				} catch (e) {
+					console.log(e);
 					res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 						'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-						error: e
+						error: e.message
 					});
 				}
 			}
@@ -139,9 +141,10 @@ module.exports = {
 				return;
 			}
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //search
@@ -214,9 +217,10 @@ module.exports = {
 			}
 			res.status(StatusCodes.OK).json(companyToSend);
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //update

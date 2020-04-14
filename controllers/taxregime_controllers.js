@@ -28,7 +28,7 @@ module.exports = {
 			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //create
@@ -47,7 +47,7 @@ module.exports = {
 			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //list
@@ -66,7 +66,7 @@ module.exports = {
 			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //get
@@ -125,9 +125,10 @@ module.exports = {
 			delete regimeToSend.__v;
 			res.status(StatusCodes.OK).json(regimeToSend);
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //update

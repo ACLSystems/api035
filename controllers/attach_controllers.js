@@ -17,34 +17,56 @@ module.exports = {
 		var subhireCreated = false;
 		var userCreated = false;
 		var dataCreated = false;
+		var documentNumber = false;
 		if(req.body.type === 'data' &&
 		(req.body.mimeType === 'application/xml' ||
 		req.body.mimeType === 'text/xml')
 		){
 			if(!req.body.company && !req.body.user) {
 				const xml2json = require('xml2json');
-				const buffer = Buffer.from(req.body.data,'base64');
-				const docData = JSON.parse(xml2json.toJson(buffer.toString('utf-8')));
-
-				const doc = DocType.cfdi(docData);
-				// return res.status(StatusCodes.OK).json(doc);
+				var docData;
 				try {
-					var data = await Attachment.findOne({documentNumber: doc.noCertificado})
-						.select('-id');
-					if(data) {
+					if(req.body.base64) {
+						const buffer = Buffer.from(req.body.data,'base64');
+						docData = JSON.parse(xml2json.toJson(buffer.toString('utf-8')));
+					} else {
+						docData = JSON.parse(xml2json.toJson(req.body.data));
+					}
+
+					const doc = DocType.cfdi(docData);
+					// return res.status(StatusCodes.OK).json(doc);
+					if(!doc.complemento || (doc.complemento && !doc.complemento.nomina12)) {
 						return res.status(StatusCodes.OK).json({
-							'message': 'Documento previamente cargado',
-							'emisorCreated': emisorCreated,
-							'subhireCreated': subhireCreated,
-							'userCreated': userCreated,
-							'dataCreated': dataCreated
+							'message': 'CFDI 3.3 es válido pero no contiene complemento de nómina 1.2'
 						});
+					}
+					if(doc.complemento &&
+						doc.complemento.timbreFiscalDigital &&
+						doc.complemento.timbreFiscalDigital.uuid
+					) {
+						documentNumber = doc.complemento.timbreFiscalDigital.uuid;
+					}
+					console.log(documentNumber);
+					if(documentNumber) {
+						var data = await Attachment.findOne({documentNumber})
+							.select('-id');
+						if(data) {
+							return res.status(StatusCodes.OK).json({
+								'message': 'Documento previamente cargado',
+								'emisorCreated': emisorCreated,
+								'subhireCreated': subhireCreated,
+								'userCreated': userCreated,
+								'dataCreated': dataCreated
+							});
+						}
 					}
 					data = new Attachment({
 						data: req.body.data,
 						type: 'data',
 						mimeType: req.body.mimeType,
-						documentNumber: doc.noCertificado,
+						documentNumber: documentNumber ? documentNumber : undefined,
+						documentName: req.body.documentName,
+						documentValid: doc.valid,
 						history: [{
 							by: keyUser._id,
 							what: 'Carga de documento'
@@ -120,7 +142,7 @@ module.exports = {
 						jobTitle: receptor ? receptor.puesto : undefined,
 						jobRisk: receptor ? receptor.riesgoPuesto : undefined,
 						department: receptor ? receptor.departamento : undefined,
-						beginDate: receptor ? new Date(receptor.fechaInicioRelLaboral) : undefined,
+						beginDate: (receptor && receptor.fechaInicioRelLaboral) ? new Date(receptor.fechaInicioRelLaboral) : undefined,
 						dailySalary: receptor ? receptor.salarioDiarioIntegrado : undefined
 					};
 					if(!user) {
@@ -170,11 +192,23 @@ module.exports = {
 						'dataCreated': dataCreated
 					});
 				} catch (e) {
-					console.log(e);
-					res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-						'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-						error: e
-					});
+					if(e.message.includes('errors in your xml file')) {
+						return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+							'message': 'Favor de revisar el error:',
+							error: 'El archivo no es un xml válido. Puede ocurrir que: 1. sea una cadena base64 en cuyo caso falta la bandera base64: true, o 2. envie un archivo xml válido.'
+						});
+					} else if(e.message.includes('E11000 duplicate key error collection')) {
+						return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+							'message': 'Favor de revisar el error:',
+							error: 'El archivo xml enviado tiene un número de certificado que ya fue cargado previamente'
+						});
+					} else {
+						console.log(e);
+						return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+							'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
+							error: e.message
+						});
+					}
 				}
 			}
 		}
@@ -243,7 +277,7 @@ module.exports = {
 			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //search
@@ -326,7 +360,7 @@ module.exports = {
 			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //get

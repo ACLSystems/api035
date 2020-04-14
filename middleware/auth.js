@@ -5,6 +5,7 @@ const User = require('../src/users');
 module.exports = {
 	async login(req,res) {
 		const server = global.config.server;
+		const portalVersion = global.config.portalVersion;
 		if(!server || !server.privateKey || !server.publicKey) {
 			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Existe un error interno y debe ser revisado por la mesa de servicio. Favor de reportarlo.'
@@ -98,7 +99,8 @@ module.exports = {
 						token,
 						iat: tokenDecoded.iat,
 						exp: tokenDecoded.exp,
-						roles: user.roles
+						roles: user.roles,
+						portalVersion
 					});
 				} else {
 					return res.status(StatusCodes.UNAUTHORIZED).json({
@@ -107,9 +109,10 @@ module.exports = {
 				}
 			});
 		} catch (e) {
-			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-				'message': 'Error interno',
-				'error': e
+			console.log(e);
+			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
+				error: e.message
 			});
 		}
 	}, //login

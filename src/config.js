@@ -16,6 +16,8 @@ const ConfigSchema = new Schema({
 	routes: {
 		jsonBodyLimit: String
 	},
+	apiVersion: String,
+	portalVersion: Number,
 	history: [HistorySchema]
 });
 

@@ -22,11 +22,17 @@ const AttachmentSchema = new Schema ({
 	documentType: {
 		type: String
 	},
+	documentName: {
+		type: String
+	},
 	subDocumentType: {
 		type: String
 	},
 	documentNumber: {
 		type: String
+	},
+	documentValid: {
+		type: Boolean
 	},
 	// kind: {
 	// 	type: String,
@@ -67,6 +73,7 @@ AttachmentSchema.index({company				: 1});
 AttachmentSchema.index({referenceDate	: 1});
 AttachmentSchema.index({mimeType			: 1},{sparse: true});
 AttachmentSchema.index({documentType	: 1},{sparse: true});
+AttachmentSchema.index({documentNumber: 1},{unique: true, sparse: true});
 AttachmentSchema.index({subDocumentType	: 1},{sparse: true});
 
 

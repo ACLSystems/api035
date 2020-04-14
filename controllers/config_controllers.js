@@ -16,9 +16,10 @@ module.exports = {
 			}
 			return res.status(StatusCodes.OK).json(config);
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //get
@@ -97,9 +98,10 @@ module.exports = {
 				});
 			}
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //set

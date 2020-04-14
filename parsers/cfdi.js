@@ -1,10 +1,13 @@
-const Privates = require('./privates');
-const Nomina	 = require('./nomina');
+const Privates	= require('./privates');
+const Nomina		= require('./nomina');
+const Timbre		= require('./timbreFiscal');
 
 module.exports = {
 	// CFDI recibe documento en base64
 	cfdi(docString){
+		// console.log(docString);
 		var keys = Object.keys(docString);
+		// console.log(keys);
 		if(keys.includes('cfdi:Comprobante')){
 			const comprobante = docString['cfdi:Comprobante'];
 			// Añadimos las propiedades requeridas y validamos su existencia
@@ -190,14 +193,14 @@ module.exports = {
 				let complemento = comprobante['cfdi:Complemento'];
 				// Nómina v1.2
 				cfdi.complemento = {};
-				if(complemento['nomina12:Nomina']) {
-					cfdi.complemento = Nomina.nomina12(complemento);
-					cfdi.complemento.valid = true;
-				}
+				cfdi.complemento.nomina12 = complemento['nomina12:Nomina'] ? Nomina.nomina12(complemento['nomina12:Nomina']) : undefined;
+				cfdi.complemento.timbreFiscalDigital = complemento['tfd:TimbreFiscalDigital'] ? Timbre.timbreFiscalDigital(complemento['tfd:TimbreFiscalDigital']) : undefined;
+				cfdi.complemento = Privates.removeUndefined(cfdi.complemento);
+				cfdi.valid = Privates.validateRequired(cfdi.complemento,['timbreFiscalDigital']);
 			}
 			cfdi = Privates.removeUndefined(cfdi);
 			cfdi.valid = Privates.validateRequired(cfdi,[
-				'version','fecha','sello','noCertificado','certificado','subTotal','moneda','total','tipoDeComprobante','lugarExpedicion','emisor','receptor','conceptos'
+				'version','fecha','sello','noCertificado','certificado','subTotal','moneda','total','tipoDeComprobante','lugarExpedicion','emisor','receptor','conceptos', 'complemento'
 			]);
 			return cfdi;
 		}

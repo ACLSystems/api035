@@ -26,9 +26,10 @@ module.exports = {
 				'message': 'Se ha cerrado la sesión'
 			});
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //logout
@@ -111,9 +112,10 @@ module.exports = {
 				roles: user.roles
 			});
 		} catch (e) {
-			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-				'message': 'Error interno',
-				'error': e
+			console.log(e);
+			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
+				error: e.message
 			});
 		}
 
@@ -140,9 +142,10 @@ module.exports = {
 				'message': 'Se han cerrado las demás sesiones'
 			});
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //logoutAllButMe
@@ -168,9 +171,10 @@ module.exports = {
 				'message': 'Se han cerrado todas las sesiones'
 			});
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //logoutAll
@@ -225,9 +229,10 @@ module.exports = {
 			delete user.history;
 			return res.status(StatusCodes.CREATED).json(user);
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, // create
@@ -286,9 +291,10 @@ module.exports = {
 				'message': 'No se encontró usuario'
 			});
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //read
@@ -398,9 +404,10 @@ module.exports = {
 				'message': 'La búsqueda no arrojó usuarios'
 			});
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //search
@@ -488,9 +495,10 @@ module.exports = {
 			}
 			return res.status(StatusCodes.OK).json(userToSend);
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}

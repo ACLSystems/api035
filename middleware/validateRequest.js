@@ -5,20 +5,18 @@ const StatusCodes = require('http-status-codes');
 module.exports = async function(req,res,next){
 	if(!global.config || !global.config.server) {
 		console.log('Error: No existe configuración');
-		res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 			'message': 'Error interno. No existe configuración. Comunicarse con la mesa de servicio.'
 		});
-		return;
 	}
 
 	const config = global.config.server;
 	// console.log(config);
 	if(!config.publicKey) {
 		console.log('Error: No existe llave pública');
-		res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 			'message': 'Error interno. No existe llave pública. Comunicarse con la mesa de servicio.'
 		});
-		return;
 	}
 	var publicKey = config.publicKey;
 	var buff = Buffer.from(publicKey,'base64');
@@ -30,10 +28,9 @@ module.exports = async function(req,res,next){
 	};
 	var token = req.headers['Authorization'] || req.headers['authorization'] || (req.body && req.body.access_token) || null;
 	if(!token) {
-		res.status(StatusCodes.UNAUTHORIZED).json({
+		return res.status(StatusCodes.UNAUTHORIZED).json({
 			'message': 'No autorizado. Requiere token'
 		});
-		return;
 	}
 	try {
 		// quitarle el "Bearer " si existe
@@ -51,13 +48,12 @@ module.exports = async function(req,res,next){
 			select: '-history'
 		}).select('-password -__v');
 		if(!user) {
-			res.status(StatusCodes.UNAUTHORIZED).json({
+			return res.status(StatusCodes.UNAUTHORIZED).json({
 				'message': 'Token no válido. Favor de iniciar sesión'
 			});
-			return;
 		}
 		if(!user.isActive || !user.isAccountable) {
-			res.status(StatusCodes.UNAUTHORIZED).json({
+			return res.status(StatusCodes.UNAUTHORIZED).json({
 				'message': 'Tu acceso ha sido revocado'
 			});
 		}
@@ -92,7 +88,7 @@ module.exports = async function(req,res,next){
 			await user.save();
 			next();
 		} else {
-			res.status(StatusCodes.FORBIDDEN).json({
+			return res.status(StatusCodes.FORBIDDEN).json({
 				'message': 'Usuario no autorizado'
 			});
 		}
@@ -101,16 +97,14 @@ module.exports = async function(req,res,next){
 			var tokenDecoded = await jwt.decode(token);
 			var userExpired = await User.findById(tokenDecoded.userid);
 			if(!userExpired) {
-				res.status(StatusCodes.NOT_FOUND).json({
+				return res.status(StatusCodes.NOT_FOUND).json({
 					'message': 'Token expirado y error en el usuario'
 				});
-				return;
 			}
 			if(!userExpired.admin) {
-				res.status(StatusCodes.NOT_FOUND).json({
+				return res.status(StatusCodes.NOT_FOUND).json({
 					'message': 'Token expirado y error en el registro del usuario'
 				});
-				return;
 			}
 			if(!userExpired.admin.tokens) {
 				userExpired.admin.tokens = [];
@@ -119,12 +113,11 @@ module.exports = async function(req,res,next){
 				return tok !== token;
 			});
 			await userExpired.save();
-			res.status(StatusCodes.UNAUTHORIZED).json({
+			return res.status(StatusCodes.UNAUTHORIZED).json({
 				'message': 'Token expirado. Favor de iniciar sesión',
 				'errMessage': e.message,
 				'expiredAt': e.expiredAt
 			});
-			return;
 		}
 		if(e.name === 'JsonWebTokenError') {
 			var message;
@@ -150,15 +143,13 @@ module.exports = async function(req,res,next){
 			default:
 				message = 'Hay un error en el token.';
 			}
-			res.status(StatusCodes.UNAUTHORIZED).json({
+			return res.status(StatusCodes.UNAUTHORIZED).json({
 				'message': `${message}. Favor de iniciar sesión`,
 				'errMessage': e.message
 			});
-			return;
 		}
-		res.status(StatusCodes.UNAUTHORIZED).json({
-			message: e
+		return res.status(StatusCodes.UNAUTHORIZED).json({
+			message: e.message
 		});
-		return;
 	}
 };

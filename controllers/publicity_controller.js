@@ -42,9 +42,10 @@ module.exports = {
 				'message': 'Anuncio creado'
 			});
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //create
@@ -61,9 +62,10 @@ module.exports = {
 			});
 			return res.status(StatusCodes.OK).json(publicity);
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //read
@@ -95,9 +97,10 @@ module.exports = {
 			});
 			return res.status(StatusCodes.OK).json(publicity);
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //read
@@ -175,9 +178,10 @@ module.exports = {
 			delete toSend.__v;
 			return res.status(StatusCodes.OK).json(publicity);
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	},
@@ -213,9 +217,10 @@ module.exports = {
 			const publicity = await Publicity.find(query).select('text image priority').sort({priority: -1});
 			return res.status(StatusCodes.OK).json(publicity);
 		} catch (e) {
+			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e
+				error: e.message
 			});
 		}
 	}, //myPublicity
