@@ -59,4 +59,9 @@ module.exports = (app) => {
 	app.get('/api/v1/mypublicity',
 		PublicityController.myPublicity
 	);
+	app.patch('/api/v1/user/addemail',
+		Validate.addEmail,
+		Validate.results,
+		UserController.addEmail
+	);
 };

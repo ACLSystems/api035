@@ -39,12 +39,26 @@ module.exports = {
 
 	async read(req,res) {
 		const keyUser = res.locals.user;
-		const isOperator = keyUser.roles.isOperator;
-		const isSupervisor = keyUser.roles.isSupervisor;
+		const roles = keyUser.roles;
+		const isOperator = roles.isOperator;
+		const isSupervisor = roles.isSupervisor;
+		const isAdmin = (roles.isAdmin || roles.isTechAdmin || roles.isBillAdmin) ? true : false;
+		if(isAdmin) {
+			let company = await Company.findById(req.params.companyid)
+				.select('-history')
+				.lean();
+			if(company) {
+				return res.status(StatusCodes.OK).json(company);
+			} else {
+				return res.status(StatusCodes.OK).json({
+					'message': 'No hay empresa con el id especificado'
+				});
+			}
+		}
 		if(isSupervisor && !isOperator) {
 			if(!Array.isArray(keyUser.companies) && keyUser.companies.length === 0){
 				res.status(StatusCodes.OK).json({
-					'message': 'No se tienen empresas asignadas'
+					'message': 'No hay empresa con el id especificado o no se tienen empresas asignadas'
 				});
 				return;
 			}
@@ -74,7 +88,7 @@ module.exports = {
 						return;
 					}
 					res.status(StatusCodes.OK).json({
-						'message': 'No hay empresa con el id especificado'
+						'message': 'No hay empresa con el id especificado o no se tiene permiso para acceder a ella'
 					});
 				} catch (e) {
 					console.log(e);

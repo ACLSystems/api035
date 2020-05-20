@@ -9,6 +9,9 @@ const AttachmentSchema = new Schema ({
 		contentType: String,
 		originalName: String
 	},
+	url: {
+		type: String
+	}, 
 	data: {
 		type: String
 	},
@@ -61,6 +64,12 @@ const AttachmentSchema = new Schema ({
 		default: new Date()
 	},
 	referenceDate: {
+		type: Date
+	},
+	beginDate: {
+		type: Date
+	},
+	endDate: {
 		type: Date
 	},
 	history: [HistorySchema]

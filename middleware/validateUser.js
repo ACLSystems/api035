@@ -50,6 +50,15 @@ module.exports = {
 			.isMongoId()
 			.withMessage('El id de la compañía no es válido')
 	],
+	addEmail: [
+		body('email')
+			.exists()
+			.withMessage('Email es requerido')
+			.custom(value => {
+				return value.match(/\S+@\S+\.\S+/);
+			})
+			.withMessage('Email debe ser una cuenta de correo válida')
+	],
 	update: [
 		header('content-type','Encabezado incorrecto - solo application/json')
 			.equals('application/json'),

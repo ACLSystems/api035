@@ -13,8 +13,23 @@ const ConfigSchema = new Schema({
 		publicKey: String,
 		portalUri: String
 	},
+	mail: {
+		fromEmail: String,
+		fromName: String,
+		apiKeyPublic: String,
+		apiKeyPrivate: String,
+		genericTemplate: Number,
+		templateErrorDeliver: Boolean,
+		templateErrorReportingEmail: String,
+		templateErrorReportingName: String,
+		saveEmail: Boolean
+	},
 	routes: {
 		jsonBodyLimit: String
+	},
+	fresh: {
+		serverUrl: String,
+		apiKey: String
 	},
 	apiVersion: String,
 	portalVersion: Number,

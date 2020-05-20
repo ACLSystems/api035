@@ -18,7 +18,7 @@ module.exports = {
 			.select('_id')
 			.lean();
 		if(user) {
-			throw new Error('Otro usuario ya utiliza el correo definido. Favor de revisar');
+			throw new Error('La cuenta de correo ya está siendo utilizada. Favor de revisar');
 		} else {
 			return true;
 		}
@@ -72,5 +72,20 @@ module.exports = {
 		} else {
 			return true;
 		}
+	},
+
+	async transformDate(stringDate) {
+		console.log(typeof stringDate);
+		let returnDate = null;
+		if(stringDate.includes('-')) {
+			let parts = stringDate.split('-');
+			returnDate = new Date(parts[0], parts[1] - 1, parts[2]);
+		} else if(stringDate.includes('/')) {
+			let parts = stringDate.split('/');
+			returnDate = new Date(parts[0], parts[1] - 1, parts[2]);
+		} else {
+			returnDate = new Date(stringDate);
+		}
+		return returnDate;
 	}
 };

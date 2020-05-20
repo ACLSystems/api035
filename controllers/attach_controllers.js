@@ -5,6 +5,7 @@ const TaxRegime 	= require('../src/taxRegimes');
 const User				= require('../src/users');
 const Secure 			= require('../shared/secure');
 const DocType 		= require('../parsers/cfdi');
+const Tools 			= require('../shared/toolsValidate');
 
 module.exports = {
 
@@ -46,7 +47,7 @@ module.exports = {
 					) {
 						documentNumber = doc.complemento.timbreFiscalDigital.uuid;
 					}
-					console.log(documentNumber);
+					// console.log(documentNumber);
 					if(documentNumber) {
 						var data = await Attachment.findOne({documentNumber})
 							.select('-id');
@@ -77,7 +78,10 @@ module.exports = {
 					}
 					if(doc.complemento && doc.complemento.nomina12 && doc.complemento.nomina12.nomina12) {
 						data.subDocumentType = 'nomina12';
+						data.beginDate = doc.complemento.nomina12.fechaInicialPago || undefined;
+						data.endDate = doc.complemento.nomina12.fechaFinalPago || undefined;
 					}
+
 					// buscar emisor
 					var emisor = await Company.findOne({identifier: doc.emisor.rfc});
 					const taxRegime = await TaxRegime.findOne({taxRegime: +doc.emisor.regimenFiscal})
@@ -151,8 +155,8 @@ module.exports = {
 							identifier: doc.receptor.rfc,
 							person: {
 								name: name.slice(0,-2).join(' '),
-								fatherName: name.slice(-2,-1).join(''),
-								motherName: name.slice(1).join(''),
+								fatherName: name.slice(-2,-1).join(' '),
+								motherName: name.slice(-1).join(''),
 								imss: receptor ? receptor.numSeguridadSocial : undefined,
 								curp: receptor ? receptor.curp : undefined
 							}
@@ -243,30 +247,32 @@ module.exports = {
 				};
 			}
 		}
-		var date;
+		var date = null;
 		if(query.date) {
-			if(query.date.includes('-')) {
-				let parts = query.date.split('-');
-				date = new Date(parts[0], parts[1] - 1, parts[2]);
-			} else if(query.date.includes('/')) {
-				let parts = query.date.split('/');
-				date = new Date(parts[0], parts[1] - 1, parts[2]);
-			} else {
-				date = new Date(query.date);
-			}
-		} else {
-			date = new Date();
+			date = Tools.transformDate(query.date);
 		}
-		var beginDate = new Date(date.getFullYear(), date.getMonth(), 1);
-		var endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-		query.referenceDate = {
-			$gte: beginDate,
-			$lte: endDate
-		};
+
+		var beginDate = null;
+		if(query.beginDate) {
+			beginDate = Tools.transformDate(query.beginDate);
+		}
+
+		var endDate = null;
+		if(query.endDate) {
+			endDate = Tools.transformDate(query.endDate);
+		}
+
+		if(date || beginDate || endDate) {
+			query.referenceDate = {
+				$gte: (!beginDate) ? new Date(date.getFullYear(), date.getMonth(), 1) : beginDate,
+				$lte:  (!endDate) ? new Date(date.getFullYear(), date.getMonth() + 1, 0) : endDate
+			};
+		}
 		delete query.date;
+		// console.log(query);
 		try {
 			const docs = await Attachment.find(query)
-				.select('type documentType documentNumber company user created updated referenceDate');
+				.select('type documentType documentNumber company user created updated referenceDate beginDate endDate');
 			if(docs.length > 0) {
 				return res.status(StatusCodes.OK).json(docs);
 			}
@@ -284,6 +290,7 @@ module.exports = {
 
 	async get(req,res) {
 		const keyUser = res.locals.user;
+		const xml2json = require('xml2json');
 		try {
 			var doc = await Attachment.findById(req.params.attachid)
 				.select('company user');
@@ -299,18 +306,20 @@ module.exports = {
 				'isSupervisor',
 				'isTechAdmin',
 				'isBillAdmin'])) {
-				if(doc.user + '' !== keyUser._id) {
+				if(doc.user + '' !== keyUser._id + '') {
 					return res.status(StatusCodes.FORBIDDEN).json({
 						'message': 'No tienes privilegios'
 					});
 				}
 				doc = await Attachment.findById(doc._id)
-					.select('attachment data mimeType type documentType documentNumber referenceDate');
+					.select('attachment data mimeType type documentType documentNumber referenceDate beginDate endDate')
+					.lean();
 				if(!doc) {
 					return res.status(StatusCodes.OK).json({
 						'message': 'No existe documento'
 					});
 				}
+				doc.json = DocType.cfdi(JSON.parse(xml2json.toJson(doc.data)));
 				return res.status(StatusCodes.OK).json(doc);
 			}
 			// Es algún admin?
@@ -325,12 +334,14 @@ module.exports = {
 					},{
 						path: 'user',
 						select: 'identifier person'
-					}]);
+					}])
+					.lean();
 				if(!doc) {
 					return res.status(StatusCodes.OK).json({
 						'message': 'No existe documento'
 					});
 				}
+				doc.json = await DocType.cfdi(JSON.parse(xml2json.toJson(doc.data)));
 				return res.status(StatusCodes.OK).json(doc);
 			} else {
 				// Entonces es algún operador o un supervisor
@@ -348,12 +359,14 @@ module.exports = {
 					},{
 						path: 'user',
 						select: 'identifier person'
-					}]);
+					}])
+					.lean();
 				if(!doc) {
 					return res.status(StatusCodes.OK).json({
 						'message': 'No existe documento'
 					});
 				}
+				doc.json = DocType.cfdi(JSON.parse(xml2json.toJson(doc.data)));
 				return res.status(StatusCodes.OK).json(doc);
 			}
 		} catch (e) {

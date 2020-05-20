@@ -4,7 +4,11 @@ const version = require('../version/version');
 
 module.exports = async function(app) {
 	try {
-		const config = await Config.findOne({});
+		const config = await Config.findOne({})
+			.populate({
+				path: 'history.by',
+				select: 'identifier'
+			});
 		global.config = config.toObject();
 		global.version = version;
 		// console.log('Esta es la configuración por defecto... Se queda en memoria: ',global.config);

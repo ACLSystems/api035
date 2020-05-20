@@ -13,6 +13,7 @@ module.exports = {
 		header('content-type','Encabezado incorrecto - solo application/json')
 			.equals('application/json'),
 		body('title').exists().withMessage('El título del servicio es requerido'),
+		body('code').exists().withMessage('El código del servicio es requerido'),
 		body('companies')
 			.optional()
 			.isArray({

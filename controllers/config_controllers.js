@@ -10,10 +10,11 @@ module.exports = {
 					'message': 'No existe configuración. Favor de validar'
 				});
 			}
-			const config = global.config;
+			const config = JSON.parse(JSON.stringify(global.config));
 			if(config.server && config.server.privateKey) {
 				delete config.server.privateKey;
 			}
+			// console.log(global.config);
 			return res.status(StatusCodes.OK).json(config);
 		} catch (e) {
 			console.log(e);

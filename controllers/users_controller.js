@@ -1,5 +1,6 @@
 const StatusCodes = require('http-status-codes');
 const User 				= require('../src/users');
+const manageError = require('../shared/errorManagement').manageError;
 
 module.exports = {
 
@@ -304,7 +305,7 @@ module.exports = {
 		const isOperator = keyUser.roles.isOperator;
 		const isSupervisor = keyUser.roles.isSupervisor;
 		var query = req.query;
-		var select;
+		var select = '-history -password';
 		const page = query.page ? +query.page : 0;
 		const perPage = query.perPage ? +query.perPage: 10;
 		const keys = Object.keys(query);
@@ -337,6 +338,7 @@ module.exports = {
 			};
 		}
 		if(keys.includes('companies')) {
+			console.log(query.companies);
 			query.companies = JSON.parse(query.companies);
 			// console.log(query);
 			if(Array.isArray(query.companies)) {
@@ -375,13 +377,17 @@ module.exports = {
 				}]
 			};
 		}
+		// var sendInitialPass = false;
+		// if(keys.includes('inipass')) {
+		// 	sendInitialPass = true;
+		// }
 		// res.status(200).json(query);
 		// return;
-		if(isOperator) {
-			select = '-roles -admin -history -password';
-		}
+		// if(isOperator) {
+		// 	select = '-roles -admin -history -password';
+		// }
 		if(isSupervisor && !isOperator) {
-			select = '-roles -admin -history -password -freshid -isAccountable -char1 -char2 -flag1 -flag2';
+			select = select.concat(' ', '-roles -freshid -isAccountable -char1 -char2 -flag1 -flag2' );
 			query.companies.company = keyUser.company._id;
 			query.companies.isActive = true;
 		}
@@ -412,6 +418,124 @@ module.exports = {
 		}
 	}, //search
 
+	async addEmail(req,res) {
+		const keyUser = res.locals.user;
+		const email = req.body.email;
+		var id = keyUser._id;
+		const nanoid = require('nanoid');
+		const generate = nanoid.customAlphabet('1234567890abcdefghijklmnopqrstwxyz', 35);
+		// return console.log(generate());
+		const server = (global.config && global.config.server) ? global.config.server : null;
+		if(!server) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				'message': 'No hay configuración del servidor. Favor de contactar a la mesa de servicio'
+			});
+		}
+		if(server && !server.portalUri) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				'message': 'No hay configuración de portal. Favor de contactar a la mesa de servicio'
+			});
+		}
+		if((keyUser.roles && (
+			keyUser.roles.isAdmin ||
+			keyUser.roles.isSupervisor ||
+			keyUser.roles.isTechAdmin ||
+			keyUser.roles.isOperator ||
+			keyUser.roles.isBillAdmin
+		)) &&
+			req.body.identifier &&
+			req.body.identifier + '' !== id + ''
+		) {
+			id = req.body.identifier;
+		}
+		try {
+			var user = await User.findById(id);
+			if(!user) {
+				return res.status(StatusCodes.OK).json({
+					'message': 'Usuario no encontrado'
+				});
+			}
+			var userEmail = await User.findOne({
+				'person.email': email
+			});
+			// console.log(user._id);
+			// console.log(userEmail._id);
+			if(userEmail && user._id + '' !== userEmail._id + '') {
+				return res.status(StatusCodes.NOT_ACCEPTABLE).json({
+					'message': 'La cuenta de correo proporcionada está siendo usada por otro usuario'
+				});
+			}
+			const what = (user.person && user.person.email) ? 'Correo agregado' : 'Correo modificado';
+			if(user.person) {
+				user.person.email = email;
+			} else {
+				user.person = {
+					email
+				};
+			}
+			if(user.admin) {
+				user.admin.validationString = generate();
+				user.admin.validationDate = new Date();
+			} else {
+				user.admin = {
+					validationString: generate(),
+					validationDate: new Date()
+				};
+			}
+			user.history.unshift({
+				by: keyUser._id,
+				what
+			});
+			await user.save();
+			const mail = require('../shared/mail');
+			const toName = user.person.name || 'No definido';
+			const link = `${server.portalUri}/#/landing/confirm/${user.admin.validationString}/${user.person.email}`;
+			await mail.sendMail(
+				user.person.email,
+				toName,
+				user._id,
+				'Validar Correo',
+				`Se ha agregado un correo a tu cuenta. Debes validarla siguiendo la liga: ${link}`
+			);
+			return res.status(StatusCodes.OK).json({
+				'message': what,
+				'link': link
+			});
+		} catch (e) {
+			console.log(e);
+			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
+				error: e.message
+			});
+		}
+	}, //addEmail
+
+	async confirmEmail(req,res) {
+		try {
+			const user = User.findOne({
+				'person.email':req.body.email,
+				'admin.validationString':req.body.validationString
+			});
+			if(!user) {
+				return res.status(StatusCodes.OK).json({
+					'message': 'Usuario o respuesta no encontrados'
+				});
+			}
+			user.admin.isEmailValidated = true;
+			user.admin.validationString = '';
+			user.admin.validationDate = null;
+			return res.status(StatusCodes.OK).json({
+				'message': 'Cuenta confirmada'
+			});
+		} catch (e) {
+			console.log(e);
+			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
+				error: e.message
+			});
+		}
+	}, //confirmEmail
+
 	async update(req,res) {
 		const keyUser = res.locals.user;
 		var updates = Object.keys(req.body);
@@ -432,10 +556,12 @@ module.exports = {
 			'char1','char2',
 			'flag1','flag2',
 			'person',
-			'addresses'
+			'addresses',
+			'phone',
+			'isCandidate'
 		];
 		const allowedArrayAdditions = [
-			'addresses'
+			'addresses','phone'
 		];
 		const isValidOperation = updates.every(update => allowedUpdates.includes(update));
 		const isValidAdditionOperation = updates.every(update => allowedArrayAdditions.includes(update));
@@ -444,63 +570,62 @@ module.exports = {
 				'message': 'Existen datos inválidos o no permitidos en el JSON proporcionado'
 			});
 		}
-		try {
-			var user = await User.findById(req.params.userid);
-			if(!user) {
-				return res.status(StatusCodes.OK).json({
-					'message': 'No se existe el usuario con el id proporcionado'
-				});
-			}
-			if(addToArray && isValidAdditionOperation) {
-				const addUpdates = updates.filter(f => allowedArrayAdditions.includes(f));
-				addUpdates.forEach(allowedArray => {
-					user[allowedArray].push(req.body[allowedArray]);
-					user.history.unshift({
-						by: keyUser._id,
-						what: `Adición: ${addUpdates.join()}`
-					});
-					delete req.body[allowedArray];
-				});
-			}
-			user = Object.assign(user,req.body);
-			user.history.unshift({
-				by: keyUser._id,
-				what: `Modificaciones: ${updates.join()}`
-			});
-			await user.save();
-			var userToSend = user.toObject();
-			delete userToSend.password;
-			delete userToSend.history;
-			delete userToSend.admin;
-			delete userToSend.isAccountable;
-			delete userToSend.roles;
-			delete userToSend.__v;
-			if(userToSend.companies && Array.isArray(userToSend.companies) && userToSend.companies.length > 0) {
-				const Company = require('../src/companies');
-				var companiesToFind = userToSend.companies.map(com => com.company);
-				var companies = await Company.find({
-					_id:{
-						$in: companiesToFind
-					}
-				}).select('isActive name display identifier');
-				companies = companies.map(comp => {
-					return {
-						isActive: true,
-						company: comp
-					};
-				});
-				if(companies.length > 0) {
-					userToSend.companies = companies;
-				}
-			}
-			return res.status(StatusCodes.OK).json(userToSend);
-		} catch (e) {
-			console.log(e);
-			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e.message
+		var user = await User.findById(req.params.userid)
+			.catch(error => manageError(res,error,'Buscando usuario'));
+		if(!user) {
+			return res.status(StatusCodes.OK).json({
+				'message': 'No se existe el usuario con el id proporcionado'
 			});
 		}
+		if(addToArray && isValidAdditionOperation) {
+			const addUpdates = updates.filter(f => allowedArrayAdditions.includes(f));
+			addUpdates.forEach(allowedArray => {
+				user[allowedArray].push(req.body[allowedArray]);
+				user.history.unshift({
+					by: keyUser._id,
+					what: `Adición: ${addUpdates.join()}`
+				});
+				delete req.body[allowedArray];
+			});
+		}
+		user = Object.assign(user,req.body);
+		user.history.unshift({
+			by: keyUser._id,
+			what: `Modificaciones: ${updates.join()}`
+		});
+		if(user.person && user.person.email) {
+			delete user.person.email;
+		}
+		// console.log(user);
+		await user.save()
+			.catch(error => manageError(res,error,'Guardando usuario'));
+		var userToSend = user.toObject();
+		delete userToSend.password;
+		delete userToSend.history;
+		delete userToSend.admin;
+		delete userToSend.isAccountable;
+		delete userToSend.roles;
+		delete userToSend.__v;
+		if(userToSend.companies && Array.isArray(userToSend.companies) && userToSend.companies.length > 0) {
+			const Company = require('../src/companies');
+			var companiesToFind = userToSend.companies.map(com => com.company);
+			var companies = await Company.find({
+				_id:{
+					$in: companiesToFind
+				}
+			}).select('isActive name display identifier')
+				.catch(error => manageError(res,error,'Buscando empresa'));
+			companies = companies.map(comp => {
+				return {
+					isActive: true,
+					company: comp
+				};
+			});
+			if(companies.length > 0) {
+				userToSend.companies = companies;
+			}
+		}
+		return res.status(StatusCodes.OK).json(userToSend);
 	}
 };
 

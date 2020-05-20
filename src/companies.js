@@ -63,6 +63,61 @@ CompanySchema.pre('save', function(next) {
 	next();
 });
 
+CompanySchema.pre('save', async function(next) {
+	if(!this.freshid) {
+		const findCompanyAPI = '/api/v2/departments';
+		const fresh = (global && global.config && global.config.fresh ) ? global.config.fresh: null;
+		if(!fresh) {
+			console.log('No... no hay configuración de fresh');
+			return next();
+		}
+		const axios = require('axios');
+		const auth = new Buffer.from(fresh.apiKey + ':X');
+		var options = {
+			method: 'get',
+			url: `${fresh.serverUrl}${findCompanyAPI}`,
+			headers: {
+				'Authorization': 'Basic ' + auth.toString('base64')
+			}
+		};
+		var response = await axios(options).catch(error => {
+			console.log('Error: '+error.response.status);
+			console.log(error.response.data);
+		});
+		if(response && response.data) {
+			const companies = (response.data.departments) ? response.data.departments: [];
+			if(companies > 0) {
+				const freshCompany = companies.find(comp => comp.custom_fields.rfc === this.identifier);
+				if(freshCompany) {
+					this.freshid = freshCompany.id;
+					return next();
+				} else {
+					console.log(`Buscamos, pero no hay empresas para ${this.identifier}`);
+				}
+			} else {
+				console.log(`No hay empresas para ${this.identifier}`);
+			}
+			options.method = 'post';
+			options.data = {
+				name: this.name,
+				custom_fields: {
+					rfc: this.identifier,
+					razon_social: this.name
+				}
+			};
+			console.log(options);
+			response = await axios(options);
+			if(response && response.data) {
+				console.log(`Creación de ${this.identifier} creado en fresh`);
+				if(response.data.department && response.data.department.id) {
+					this.freshid = response.data.department.id;
+				}
+			}
+		}
+	}
+	next();
+});
+
 CompanySchema.index({name				: 1});
 CompanySchema.index({identifier	: 1});
 CompanySchema.index({isActive		: 1});

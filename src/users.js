@@ -36,6 +36,11 @@ const RolesSchema = new Schema({
 		required: true,
 		default: false
 	},
+	isRequester: {
+		type: Boolean,
+		required: true,
+		default: false
+	},
 	isSupervisor: {
 		type: Boolean,
 		required: true,
@@ -66,7 +71,14 @@ const AdminSchema = new Schema({
 	initialPassword: {
 		type: String,
 	},
-	tokens: [String]
+	tokens: [String],
+	validationString: {
+		type: String,
+		default: ''
+	},
+	validationDate: {
+		type: Date
+	}
 },{_id: false});
 
 const OperatorSchema = new Schema({
@@ -127,6 +139,10 @@ const UserSchema = new Schema({
 		type: Boolean,
 		default: true
 	},
+	isCandidate: {
+		type: Boolean,
+		default: false
+	},
 	assignedCompanies: [OperatorSchema],
 	companies: [CompaniesSchema],
 	char1: String,
@@ -172,6 +188,7 @@ UserSchema.pre('save', function(next) {
 		this.roles = {
 			isAdmin: false,
 			isOperator: false,
+			isRequester: false,
 			isSupervisor: false,
 			isTechAdmin: false,
 			isBillAdmin: false,
@@ -208,6 +225,137 @@ UserSchema.pre('save', function(next) {
 	next();
 });
 
+UserSchema.pre('save', async function(next) {
+	// console.log('Si entramos en este pre-save')
+	if(this.identifier === 'XEXX010101000') {
+		return next();
+	}
+	if(this.isCandidate) {
+		return next();
+	}
+	if(!this.freshid) {
+		// console.log('Nop... no hay freshid para esta persona: ', this.identifier);
+		if(!this.person) {
+			console.log('No... no hay datos de persona: ', this.identifier);
+			return next();
+		}
+		if(!this.person.email) {
+			console.log('No... esta persona no tiene correo: ', this.identifier);
+			return next();
+		}
+		const findRequesterAPI = '/api/v2/requesters';
+		const findAgentAPI = '/api/v2/agents';
+		const fresh = ( global && global.config && global.config.fresh ) ? global.config.fresh : null;
+		if(!fresh) {
+			console.log('No... no hay configuración de fresh');
+			return next();
+		}
+		const axios = require('axios');
+		const auth = new Buffer.from(fresh.apiKey + ':X');
+		var options = {
+			method: 'get',
+			url: `${fresh.serverUrl}${findRequesterAPI}?email=${this.person.email}`,
+			headers: {
+				'Authorization': 'Basic ' + auth.toString('base64')
+			}
+		};
+		// console.log(this.identifier);
+		// console.log(options);
+		var response = await axios(options).catch(error => {
+			console.log('Error: '+error.response.status);
+			console.log(error.response.data);
+		});
+		if(response && response.data) {
+			// console.log(response.data);
+			const requesters = (response.data.requesters) ? response.data.requesters : [];
+			if(requesters.length > 0) {
+				// Este usuario es solicitante en Fresh
+				// console.log(requesters);
+				this.freshid = requesters[0].id;
+			} else {
+				// console.log('No hay registro de requesters');
+				options.url = `${fresh.serverUrl}${findAgentAPI}?email=${this.person.email}`;
+				response = await axios(options).catch(error => {
+					console.log('Error: '+error.response.status);
+					console.log(error.response.data);
+				});
+				var payload = {};
+				if(response && response.data) {
+					// Este usuario es agente en Fresh
+					const agents = (response.data.agents) ? response.data.agents : [];
+					if(agents.length > 0) {
+						// revisar si el agente tiene los datos correctos
+						this.freshid = agents[0].id;
+						// if(this.person && this.person.name !== agent.first_name) {
+						// 	payload.first_name = this.person.name;
+						// }
+						// if(this.person && this.person.fatherName + ' ' + this.person.motherName !== agent.last_name) {
+						// 	payload.last_name = this.person.fatherName + ' ' + this.person.motherName;
+						// }
+					} else {
+						console.log('No hay registro de agentes');
+						// No hay registro de ni de solicitante y/o agente
+						// por lo tanto, debe generarse el solicitante en Fresh
+						options.url = `${fresh.serverUrl}${findRequesterAPI}`;
+						options.method = 'post';
+						payload.language = 'es-LA';
+						payload.primary_email = this.person.email;
+						payload.custom_fields = {
+							rfc: this.identifier
+						};
+						if(this.person && this.person.name) {
+							payload.first_name = capitalize(this.person.name);
+						}
+						if(this.person && this.person.fatherName) {
+							payload.last_name = capitalize(this.person.fatherName);
+							if(this.person.motherName) {
+								payload.last_name = payload.last_name + ' ' + capitalize(this.person.motherName);
+							}
+						}
+						if(this.person && this.person.imss) {
+							payload.custom_fields.nss = this.person.imss + '';
+						}
+						if(this.companies.length > 0) {
+							// console.log('Si hay muchas companies');
+							for(var i=0;i< this.companies.length; i++) {
+								const Company = require('./companies');
+								const company = await Company.findById(this.companies[i].company).catch(e => {
+									console.log('Error: ' + e.message);
+								});
+								if(company && company.freshid) {
+									if(!payload.department_ids) {
+										payload.department_ids = [
+											+company.freshid
+										];
+									} else {
+										payload.department_ids.push(+company.freshid);
+									}
+								}
+								if(this.companies[i].jobTitle && !payload.job_title) {
+									payload.job_title = this.companies[i].jobTitle;
+								}
+							}
+						}
+						options.data = Object.assign({},payload);
+						// console.log(options);
+						response = await axios(options).catch(error => {
+							console.log('Error: '+error.response.status);
+							console.log(error.response.data);
+						});
+						if(response && response.data) {
+							console.log(`Creacion de ${this.identifier} creado en fresh`);
+							if(response.data.requester && response.data.requester.id) {
+								this.freshid = response.data.requester.id;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	next();
+});
+
 UserSchema.methods.validatePassword = function(password, cb) {
 	bcrypt.compare(password, this.password, function(err, isOk) {
 		if(err) return cb(err);
@@ -215,21 +363,40 @@ UserSchema.methods.validatePassword = function(password, cb) {
 	});
 };
 
-UserSchema.index( { 'companies.company'			: 1} );
-UserSchema.index( { 'companies.isActive'		: 1} );
-UserSchema.index( { 'person.name'						: 1} );
-UserSchema.index( { 'person.fatherName'			: 1} );
-UserSchema.index( { 'person.motherName'			: 1} );
-UserSchema.index( { 'person.email'					: 1}, {sparse: true} );
-UserSchema.index( { isActive								: 1} );
-UserSchema.index( { isAccountable						: 1} );
-UserSchema.index( { identifier							: 1} );
-UserSchema.index( { freshid									: 1} );
-UserSchema.index( { char1										: 1}, {sparse: true} );
-UserSchema.index( { char2										: 1}, {sparse: true} );
-UserSchema.index( { flag1										: 1}, {sparse: true} );
-UserSchema.index( { flag2										: 1}, {sparse: true} );
+UserSchema.index( { 'companies.company'				: 1 });
+UserSchema.index( { 'companies.isActive'			: 1 });
+UserSchema.index( { 'person.name'							: 1 });
+UserSchema.index( { 'person.fatherName'				: 1 });
+UserSchema.index( { 'person.motherName'				: 1 });
+UserSchema.index( { 'person.email'						: 1 },{sparse:true});
+UserSchema.index( { 'admin.validationString'	: 1 },{sparse:true});
+UserSchema.index( { isActive									: 1 });
+UserSchema.index( { isAccountable							: 1 });
+UserSchema.index( {	isCandidate								: 1 },{sparse:true});
+UserSchema.index( { identifier								: 1 });
+UserSchema.index( { freshid										: 1 },{sparse:true});
+UserSchema.index( { char1											: 1 },{sparse:true});
+UserSchema.index( { char2											: 1 },{sparse:true});
+UserSchema.index( { flag1											: 1 },{sparse:true});
+UserSchema.index( { flag2											: 1 },{sparse:true});
 
 
 const User = mongoose.model('users', UserSchema);
 module.exports = User;
+
+function capitalize(phrase) {
+	if(typeof phrase !== 'string') {
+		return phrase;
+	}
+	var words = phrase.toLowerCase().split(' ');
+	var returnWords = '';
+
+	for(var i=0;i<words.length;i++) {
+		if(i > 0 && words.length > 1) {
+			returnWords = returnWords + ' ';
+		}
+		returnWords = returnWords + words[i].charAt(0).toUpperCase() + words[i].slice(1);
+	}
+	return returnWords;
+
+}
