@@ -130,6 +130,14 @@ const UserSchema = new Schema({
 		match: /^([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])$/ //CALA72100734A
 	},
 	password: String,
+	oneTimePassword: {
+		type: String,
+		default: ''
+	},
+	oneTimePasswordDate: {
+		type: Date
+	},
+	apiKey: String,
 	freshid: String,
 	isActive: {
 		type: Boolean,
@@ -179,6 +187,9 @@ UserSchema.pre('save', function(next){
 		} else {
 			this.isAccountable = false;
 		}
+		if(this.isCandidate) {
+			this.isAccountable = false;
+		}
 	}
 	next();
 });
@@ -193,6 +204,22 @@ UserSchema.pre('save', function(next) {
 			isTechAdmin: false,
 			isBillAdmin: false,
 		};
+	}
+	next();
+});
+
+UserSchema.pre('save', function(next) {
+	if(!this.person || (this.person && !this.person.name)) {
+		next();
+	}
+	var char = this.person.name.charAt(0);
+	if(char !== char.toUpperCase()) {
+		if(this.person.name)
+		{this.person.name = capitalize(this.person.name);}
+		if(this.person.fatherName)
+		{this.person.fatherName = capitalize(this.person.fatherName);}
+		if(this.person.motherName)
+		{this.person.motherName = capitalize(this.person.motherName);}
 	}
 	next();
 });
@@ -220,6 +247,21 @@ UserSchema.pre('save', function(next) {
 		}
 		if(this.password) {
 			this.password = bcrypt.hashSync(this.password, salt);
+		}
+	}
+	next();
+});
+
+UserSchema.pre('save', function(next) {
+	if(!this.oneTimePassword) {
+		next();
+	}
+	var re = /^\$2a\$10\$.*/;
+	var found = re.test(this.oneTimePassword);
+	if(!found) {
+		var salt = bcrypt.genSaltSync(10);
+		if(this.oneTimePassword) {
+			this.oneTimePassword = bcrypt.hashSync(this.oneTimePassword, salt);
 		}
 	}
 	next();
@@ -356,11 +398,22 @@ UserSchema.pre('save', async function(next) {
 	next();
 });
 
-UserSchema.methods.validatePassword = function(password, cb) {
-	bcrypt.compare(password, this.password, function(err, isOk) {
-		if(err) return cb(err);
-		cb(null, isOk);
-	});
+// UserSchema.methods.validatePassword = function(password, cb) {
+// 	bcrypt.compare(password, this.password, function(err, isOk) {
+// 		if(err) return cb(err);
+// 		cb(null, isOk);
+// 	});
+// };
+
+UserSchema.methods.validatePassword = async function(password) {
+	var otp = false;
+	var pass = false;
+	if(this.oneTimePassword) {
+		otp =  await bcrypt.compare(password,this.oneTimePassword);
+	}
+	pass = await bcrypt.compare(password,this.password);
+
+	return pass || otp;
 };
 
 UserSchema.index( { 'companies.company'				: 1 });

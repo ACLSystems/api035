@@ -529,12 +529,133 @@ module.exports = {
 			});
 		} catch (e) {
 			console.log(e);
-			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
 				error: e.message
 			});
 		}
 	}, //confirmEmail
+
+	async reqPassRecovery(req,res) {
+		const user = await User
+			.findOne({identifier:req.params.identifier})
+			.catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					message: 'Hubo un error al intentar localizar al usuario. Favor de intentar más tarde'
+				});
+			});
+		if(!user) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'No se encontró un usuario con los datos proporcionados'
+			});
+		}
+		if(!user.person || (user.person && !user.person.email)) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'Este mecanismo no puede utilizarse ya que el usuario encontrado no cuenta con correo electrónico. Solicita al operador que te registren una cuenta de correo.'
+			});
+		}
+		if(!user.isAccountable) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'Tu cuenta no está activada'
+			});
+		}
+		if(!user.isActive) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'Tu cuenta no está activada'
+			});
+		}
+		const server = (global.config && global.config.server) ? global.config.server : null;
+		if(!server || (server && !server.portalUri)) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error al generar la solicitud de recuperación de contraseña. Favor de intentar más tarde'
+			});
+		}
+		const nanoid = require('nanoid');
+		const mail = require('../shared/mail');
+		user.admin.validationString = nanoid.customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 35)();
+		user.admin.validationDate = new Date();
+		await user.save().catch(e => {
+			console.log(e);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error al generar la solicitud de recuperación de contraseña. Favor de intentar más tarde'
+			});
+		});
+		const link = `${server.portalUri}/#/landing/recovery/${user.admin.validationString}`;
+		console.log(link);
+		await mail.sendMail(
+			user.person.email,
+			user.person.name,
+			user._id,
+			'Solicitud de recuperación de contraseña',
+			`<p>Has solicitado recuperar tu contraseña</p> <p>La siguiente liga solo puede usarse una vez y durante las próximas 24 horas.</p><p>Si expira, tendrías que repetir el proceso</p><a href="${link}"><h3>Ingresa ahora</h3></a><p>Si la liga anterior no funciona, copia la siguiente liga y pégala en tu navegador:</p><p>${link}</p>`
+		);
+		return res.status(StatusCodes.OK).json({
+			message: 'Se ha enviado correo con la solicitud de recuperación de contraseña'
+		});
+	},// reqPassRecovery
+
+	async validatePassRecovery(req,res) {
+		const user = await  User.findOne({identifier:req.body.identifier,'admin.validationString': req.body.validationString}).catch(error => {
+			console.log(error);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error interno al tratar de localizar al usuario. Favor de intentar más tarde'
+			});
+		});
+		if(!user) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'RFC o clave no son correctos'
+			});
+		}
+		user.password = req.body.password;
+		user.admin.validationString = '';
+		await user.save();
+		const mail = require('../shared/mail');
+		await mail.sendMail(
+			user.person.email,
+			user.person.name,
+			user._id,
+			'Contraseña recuperada y modificada',
+			'<p>Se ha realizado una recuperación de contraseña exitosa.</p> <p>Si no fuiste tú quien la solicitó te sugerimos ponerte en contacto con la mesa de ayuda.</p>'
+		);
+		return res.status(StatusCodes.OK).json({
+			message: 'Contraseña recuperada'
+		});
+	}, //validatePassRecovery
+
+	async newPass(req,res) {
+		const keyUser = res.locals.user;
+		const user = await User.findById(keyUser._id).catch(error => {
+			console.log(error);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error interno al tratar de localizar al usuario. Favor de intentar más tarde'
+			});
+		});
+		if(!user) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'No se localizó al usuario'
+			});
+		}
+		const isOk = await user.validatePassword(req.body.password);
+		if(!isOk) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: 'Contraseña no coincide'
+			});
+		}
+		user.password = req.body.password;
+		await user.save();
+		const mail = require('../shared/mail');
+		await mail.sendMail(
+			user.person.email,
+			user.person.name,
+			user._id,
+			'Contraseña modificada',
+			'<p>Se ha realizado una modificación de contraseña exitosa.</p> <p>Si no fuiste tú quien la solicitó te sugerimos ponerte en contacto con la mesa de ayuda.</p>'
+		);
+		return res.status(StatusCodes.OK).json({
+			message: 'Contraseña modificada'
+		});
+	}, //newPass
 
 	async update(req,res) {
 		const keyUser = res.locals.user;
@@ -626,7 +747,324 @@ module.exports = {
 			}
 		}
 		return res.status(StatusCodes.OK).json(userToSend);
-	}
+	}, // update
+
+	async generateOneTimePassword(req,res) {
+		const identifier = req.params.identifier;
+		const user = await User.findOne({identifier}).catch(e => {
+			console.log(e);
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				'message': 'Error en la búsqueda del usuario'
+			});
+		});
+		if(!user.person || (user.person && !user.person.email)) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				'message': 'Se requiere tener configurada cuenta de correo previamente'
+			});
+		}
+		if(!user.isAccountable) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				'message': 'Tu cuenta debe estar activa'
+			});
+		}
+		const nanoid = require('nanoid');
+		const mail = require('../shared/mail');
+		const generate = nanoid.customAlphabet('1234567890', 16);
+		var value = generate();
+		while(value.charAt(0) === '0') {
+			value = generate();
+		}
+		user.oneTimePassword = value;
+		user.oneTimePasswordDate = new Date();
+		await user.save().catch(e => {
+			console.log(e);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error al generar contraseña de un solo uso. Favor de intentar más tarde'
+			});
+		});
+		await mail.sendMail(
+			user.person.email,
+			user.person.name,
+			user._id,
+			'Ingresa al sistema',
+			`<p>Has solicitado una contraseña de un sólo uso.</p> <p>Esta contraseña tiene una vigencia de <span style="color:red">60 minutos</span>. Por favor ingresa al kiosco con la siguiente contraseña:</p> <h1 style="text-align:center">${value}</h1>`
+		);
+		return res.status(StatusCodes.OK).json({
+			message: 'Se ha enviado correo con password de un solo uso'
+		});
+	}, //generateOneTimePassword
+
+	async initiateCV(req, res) {
+		if(!req.body.identifier) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: 'Se requiere RFC'
+			});
+		}
+		const keyUser = res.locals.user;
+		const roles = keyUser.roles;
+		if(!roles.isOperator &&
+			!roles.isAdmin &&
+			!roles.isBillAdmin &&
+			!roles.isTechAdmin) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No estás autorizado para crear hojas de vida'
+			});
+		}
+		const server = (global.config && global.config.server) ? global.config.server : null;
+		if(!server || (server && !server.portalUri)) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error al generar la solicitud de recuperación de contraseña. Favor de intentar más tarde'
+			});
+		}
+		const CV = require('../src/cv');
+		var user = await User
+			.findOne({identifier:req.body.identifier})
+			.catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error al intentar localizar al usuario'
+				});
+			});
+		var cv;
+		console.log(req.body);
+		if(!user) {
+			if(!req.body.name && !req.body.fatherName && !req.body.motherName && !req.body.email && !req.body.company) {
+				return res.status(StatusCodes.BAD_REQUEST).json({
+					'message': 'Se requieren los campos de Nombre, Apellidos y Correo ya que el identificador solicitado no existe y es necesario para la creación del usuario'
+				});
+			}
+			user = new User({
+				identifier: req.body.identifier,
+				person: {
+					name: req.body.name,
+					fatherName: req.body.fatherName,
+					motherName: req.body.motherName,
+					email: req.body.email
+				},
+				isActive: true,
+				isAccountable: false,
+				isCandidate: true
+			});
+			if(req.body.companies) {
+				user.companies = [...req.body.companies];
+			}
+			user.history.unshift({
+				by: keyUser._id,
+				what: 'Creación de usuario'
+			});
+			await user.save();
+			cv = new CV({
+				user:user._id,
+				job: [{
+					name: req.body.jobName,
+					place: req.body.jobPlace
+				}],
+				request: req.body.request
+			});
+			cv.history.unshift({
+				by: keyUser._id,
+				what: 'Creación de hoja de vida'
+			});
+		} else {
+			cv = await CV.findOne({user:user._id})
+				.catch(e => {
+					console.log(e);
+					return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+						'message': 'Error al intentar localizar al usuario'
+					});
+				});
+			if(!cv) {
+				cv = new CV({
+					user:user._id,
+					job: [{
+						name: req.body.jobName,
+						place: req.body.jobPlace
+					}],
+					request: req.body.request
+				});
+				cv.history.unshift({
+					by: keyUser._id,
+					what: 'Creación de hoja de vida'
+				});
+			} else {
+				if(!cv.request) {
+					cv.request = req.body.request;
+				}
+				if(cv.job) {
+					let findJob = cv.job.find(job => job.name.toLowerCase() === req.body.jobName.toLowerCase() && job.place.toLowerCase() === req.body.jobPlace.toLowerCase());
+					if(!findJob) {
+						cv.job.push({
+							name: req.body.jobName,
+							place: req.body.jobPlace
+						});
+					}
+				}
+			}
+		}
+		const nanoid = require('nanoid');
+		cv.cvToken = nanoid.customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 35)();
+		cv.cvTokenDate = new Date();
+		cv.history.unshift({
+			by: keyUser._id,
+			what: 'Creación de token'
+		});
+		await cv.save();
+		const mail = require('../shared/mail');
+		const link = `${server.portalUri}/#/landing/job/${cv.cvToken}`;
+		await mail.sendMail(
+			user.person.email,
+			user.person.name,
+			user._id,
+			'Completa tu solicitud de empleo',
+			`<p>Te han generado una liga para que puedas completar tu solicitud de empleo</p> <p>El formulario de solicitud tiene una vigencia de 14 días, por lo que te recomendamos llenarla cuanto antes.</p><p>Para acceder al formulario de la solicitud da clic en la siguiente liga:<p><a href="${link}"><h1>Da click aquí</h1></a><p>Si la liga anterior no funciona, copia y pega la siguiente liga en tu navegador:</p><p>${link}</p>`
+		);
+		res.status(StatusCodes.OK).json({
+			message: `Se ha enviado correo a ${user.identifier} (${user.person.email})`
+		});
+	}, // initiateCV
+
+	async listCVs(req,res) {
+		const keyUser = res.locals.user;
+		const {
+			isAdmin,
+			isOperator,
+			isTechAdmin,
+			isBillAdmin,
+			isSupervisor,
+			isRequester
+		} = keyUser.roles;
+		if(!isAdmin &&
+			!isOperator &&
+			!isTechAdmin &&
+			!isBillAdmin &&
+			!isSupervisor &&
+			!isRequester
+		) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No estás autorizado a realizar esta operación'
+			});
+		}
+		var users, cvs;
+		const CV = require('../src/cv');
+		if(req.query.ticket) {
+			cvs = await CV.find({
+				request: +req.query.ticket
+			})
+				.select('-cvToken -cvTokenDate -__v')
+				.lean()
+				.catch(e => {
+					console.log(e);
+					return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+						'message': 'Error al realizar la búsqueda de hojas de vida'
+					});
+				});
+			if(cvs && cvs.length < 1) {
+				console.log('No cvs');
+				return res.status(StatusCodes.OK).json([]);
+			}
+			console.log('cvs');
+			console.log(cvs);
+			const searchUsers = cvs.map(u => u.user);
+			console.log(searchUsers);
+			query = {
+				_id: {$in:searchUsers}
+			};
+			users = await User.find(query)
+				.select('identifier isActive isCandidate companies person phone addresses created updated')
+				.populate('companies.company', 'identifier name display')
+				.populate('filledBy', 'person')
+				.lean()
+				.catch(e => {
+					console.log(e);
+					return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+						'message': 'Error al realizar la búsqueda de usuarios'
+					});
+				});
+			if(users && users.length < 1) {
+				console.log('No users');
+				return res.status(StatusCodes.OK).json([]);
+			}
+			console.log('users');
+			console.log(users);
+		} else {
+			var query = {isCandidate: true, isActive: true};
+			if((isRequester || isSupervisor) && (!isAdmin && !isTechAdmin && !isOperator && !isBillAdmin)) {
+				query.companies = keyUser.companies.map(comp => comp.company);
+			}
+			users = await User.find(query)
+				.select('identifier isActive isCandidate companies person phone addresses created updated')
+				.populate('companies.company', 'identifier name display')
+				.populate('filledBy', 'person')
+				.lean()
+				.catch(e => {
+					console.log(e);
+					return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+						'message': 'Error al realizar la búsqueda de usuarios'
+					});
+				});
+			if(users && users.length < 1) {
+				console.log('No users');
+				return res.status(StatusCodes.OK).json([]);
+			}
+			console.log('users');
+			console.log(users);
+			const searchUsers = users.map(u => u._id);
+			console.log(searchUsers);
+			query = {
+				user: {$in:searchUsers}
+			};
+			cvs = await CV.find(query)
+				.select('-cvToken -cvTokenDate -__v')
+				.lean()
+				.catch(e => {
+					console.log(e);
+					return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+						'message': 'Error al realizar la búsqueda de hojas de vida'
+					});
+				});
+			if(cvs && cvs.length < 1) {
+				console.log('No cvs');
+				return res.status(StatusCodes.OK).json([]);
+			}
+			console.log('cvs');
+			console.log(cvs);
+		}
+		const results = mergeArrays(users,cvs);
+		return res.status(StatusCodes.OK).json(results);
+	}, // listCVs
+
+	async getCVbyToken(req,res) {
+		const CV = require('../src/cv');
+		const cv = await CV.findOne({cvToken: req.query.token})
+			.select('-cvToken -cvTokenDate -__v -history')
+			.lean()
+			.catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error al realizar la búsqueda de hoja de vida'
+				});
+			});
+		if(!cv) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message:'Hoja de vida no localizada'
+			});
+		}
+		const user = await User.findById(cv.user)
+			.select('person')
+			.lean()
+			.catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error al realizar la búsqueda de hoja de vida'
+				});
+			});
+		if(!user) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message:'Hoja de vida no localizada'
+			});
+		}
+		res.status(StatusCodes.OK).json(Object.assign({},user,cv));
+	}, //getCVbyToken
 };
 
 function checkCompanies(A,B) {
@@ -649,4 +1087,16 @@ function checkCompanies(A,B) {
 		}
 		return false;
 	});
+}
+
+function mergeArrays(A,B) {
+	if(!Array.isArray(A) || !Array.isArray(B)) {
+		return null;
+	}
+	return A.map((item,i) => {
+		if(item._id + '' === B[i].user + '') {
+			return Object.assign({},item, B[i]);
+		}
+	});
+
 }

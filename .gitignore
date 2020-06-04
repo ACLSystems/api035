@@ -117,3 +117,15 @@ dist
 
 # TernJS port file
 .tern-port
+
+# otros archivos     #
+######################
+doc/Oferta*
+/src/*NO_USAR*
+/*/*_notUse*
+.dockerignore
+Dockerfile
+docker-compose.yml
+process.yml
+.env
+*.jpg

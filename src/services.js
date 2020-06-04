@@ -46,12 +46,24 @@ const ServiceSchema = new Schema({
 		type: Number,
 		default: 100
 	},
+	category: {
+		type: String
+	},
+	role: {
+		type: String,
+		default: ''
+	},
+	serviceid: {
+		type: String
+	},
 	companies: [CompaniesSchema],
 	history: [HistorySchema]
 });
 
 ServiceSchema.index({ tag										: 1}, {sparse: true});
 ServiceSchema.index({	isActive							: 1});
+ServiceSchema.index({	title									: 1});
+ServiceSchema.index({ category 							: 1}, {sparse: true});
 ServiceSchema.index({ 'companies.isActive'	: 1}, {sparse: true});
 ServiceSchema.index({ 'companies.company'		: 1}, {sparse: true});
 

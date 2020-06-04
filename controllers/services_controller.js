@@ -88,8 +88,10 @@ module.exports = {
 		}
 		try {
 			var companies = keyUser.companies.filter(com => com.isActive);
+			// console.log(companies);
 			companies = companies.filter(com => com.company.isActive);
 			companies = companies.map(com => com.company._id);
+			// console.log(companies);
 			const services = await Service.find({
 				$or: [
 					{

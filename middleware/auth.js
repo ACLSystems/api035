@@ -78,59 +78,75 @@ module.exports = {
 			// console.log('Usuario con expiración de un día');
 			expiresIn = diffTime + 'ms';
 		}
-		user.validatePassword(password, async function(err,isOk) {
-			if(isOk) {
-				const payload = {
-					userid: user._id,
-					person: user.person,
-					companies: user.companies,
-					freshid: user.freshid
-				};
-				const signOptions = {
-					issuer,
-					subject: user.identifier,
-					audience,
-					expiresIn,
-					algorithm: 'RS256'
-				};
-				// console.log(signOptions);
-				const token = await jwt.sign(payload, privateKey, signOptions);
-				const tokenDecoded = jwt.decode(token);
-				if(!user.admin.tokens || !Array.isArray(user.admin.tokens)) {
-					user.admin.tokens = [];
-				}
 
-				// Mantenimiento al arreglo de tokens
-				var invalidTokens = [];
-				// console.log(`# of Tokens: ${user.admin.tokens.length}`);
-				user.admin.tokens.forEach(tok => {
-					jwt.verify(tok,publicKey, (err) => {
-						if(err) {
-							invalidTokens.push(tok);
-						}
-					});
-				});
-				// console.log(`Invalid tokens: ${invalidTokens.length}`);
-				user.admin.tokens = user.admin.tokens.filter(item => {return !invalidTokens.includes(item);});
-
-				// Ya limpio el arreglo de tokens agregamos el token nuevo
-				user.admin.tokens.push(token);
-				user.lastLogin = new Date();
+		// Revisamos la expiración del password de un solo uso
+		if(user.oneTimePassword) {
+			const now = new Date().getTime();
+			const oTPdateExp = user.oneTimePasswordDate.getTime() + 3600000;
+			console.log(`Now: ${now} Exp: ${oTPdateExp}`);
+			if(now > oTPdateExp) {
+				user.oneTimePassword = '';
+				user.oneTimePasswordDate = null;
 				await user.save();
-				// console.log(`# of Tokens: ${user.admin.tokens.length}`);
-				return res.status(StatusCodes.OK).json({
-					token,
-					iat: tokenDecoded.iat,
-					exp: tokenDecoded.exp,
-					roles: user.roles,
-					portalVersion
-				});
-			} else {
-				return res.status(StatusCodes.UNAUTHORIZED).json({
-					'message': 'Error: el usuario o el password no son correctos'
-				});
 			}
-		});
+		}
+		const isOk = await user.validatePassword(password);
+		// console.log(`isOk: ${isOk}`);
+		if(isOk) {
+			const payload = {
+				userid: user._id,
+				person: user.person,
+				companies: user.companies,
+				freshid: user.freshid
+			};
+			const signOptions = {
+				issuer,
+				subject: user.identifier,
+				audience,
+				expiresIn,
+				algorithm: 'RS256'
+			};
+			// console.log(signOptions);
+			const token = await jwt.sign(payload, privateKey, signOptions);
+			const tokenDecoded = jwt.decode(token);
+			if(!user.admin.tokens || !Array.isArray(user.admin.tokens)) {
+				user.admin.tokens = [];
+			}
+
+			// Mantenimiento al arreglo de tokens
+			var invalidTokens = [];
+			// console.log(`# of Tokens: ${user.admin.tokens.length}`);
+			user.admin.tokens.forEach(tok => {
+				jwt.verify(tok,publicKey, (err) => {
+					if(err) {
+						invalidTokens.push(tok);
+					}
+				});
+			});
+			// console.log(`Invalid tokens: ${invalidTokens.length}`);
+			user.admin.tokens = user.admin.tokens.filter(item => {return !invalidTokens.includes(item);});
+
+			// Ya limpio el arreglo de tokens agregamos el token nuevo
+			user.admin.tokens.push(token);
+			user.lastLogin = new Date();
+			if(user.oneTimePassword) {
+				user.oneTimePassword = '';
+				user.oneTimePasswordDate = null;
+			}
+			await user.save();
+			// console.log(`# of Tokens: ${user.admin.tokens.length}`);
+			return res.status(StatusCodes.OK).json({
+				token,
+				iat: tokenDecoded.iat,
+				exp: tokenDecoded.exp,
+				roles: user.roles,
+				portalVersion
+			});
+		} else {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				'message': 'Error: el usuario o el password no son correctos'
+			});
+		}
 		// } catch (e) {
 		// 	console.log(e);
 		// 	res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({

@@ -23,6 +23,26 @@ module.exports = (app) => {
 	app.get('/api/v1/user',
 		UserController.getMyDetails
 	);
+	app.get('/api/generateonetimepass/:identifier',
+		Validate.oneTimePassword,
+		UserController.generateOneTimePassword
+	);
+	app.get('/api/reqpassrecovery/:identifier',
+		Validate.reqPassRecovery,
+		UserController.reqPassRecovery
+	);
+	app.patch('/api/validatepassrecovery',
+		Validate.validatePassRecovery,
+		UserController.validatePassRecovery
+	);
+	app.patch('/api/v1/newpass',
+		Validate.newPass,
+		UserController.newPass
+	);
+	app.post('/api/v1/operator/initiatecv',
+		Validate.initiateCV,
+		UserController.initiateCV
+	);
 	app.post('/api/v1/refreshtoken',
 		UserController.tokenRefresh
 	);
@@ -46,6 +66,9 @@ module.exports = (app) => {
 		Validate.results,
 		UserController.search
 	);
+	app.get('/api/v1/operator/cvs',
+		UserController.listCVs
+	);
 	app.get('/api/v1/supervisor/user',
 		Validate.search,
 		Validate.results,
@@ -63,5 +86,8 @@ module.exports = (app) => {
 		Validate.addEmail,
 		Validate.results,
 		UserController.addEmail
+	);
+	app.get('/api/getcvbytoken',
+		UserController.getCVbyToken
 	);
 };

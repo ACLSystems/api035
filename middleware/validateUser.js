@@ -87,6 +87,66 @@ module.exports = {
 				return await Tools.checkCompany(value);
 			})
 	],
+	oneTimePassword: [
+		param('identifier')
+			.exists()
+			.withMessage('Se requiere RFC')
+	],
+	reqPassRecovery : [
+		param('identifier')
+			.exists()
+			.withMessage('Se requiere RFC')
+	],
+	validatePassRecovery : [
+		body('identifier')
+			.exists()
+			.withMessage('Se requiere RFC'),
+		body('validationString')
+			.exists()
+			.withMessage('Se requiere token de validación'),
+		body('password')
+			.exists()
+			.withMessage('Se requiere password')
+	],
+	newPass : [
+		body('password')
+			.exists()
+			.withMessage('Se requiere password')
+	],
+	initiateCV: [
+		body('identifier')
+			.exists()
+			.withMessage('Se requiere RFC')
+			.custom(value => {
+				return value.match(/^([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])$/);
+			})
+			.withMessage('RFC debe ser válido'),
+		body('jobName')
+			.exists()
+			.withMessage('Se requiere nombre de la vacante'),
+		body('jobPlace')
+			.exists()
+			.withMessage('Se requiere lugar de trabajo'),
+		body('request')
+			.exists()
+			.withMessage('Se requiere el número de ticket'),
+		body('companies')
+			.exists()
+			.withMessage('Se requiere empresa')
+			.isArray({
+				min: 1
+			})
+			.withMessage('"companies" debe tener al menos un elemento')
+			.custom(async function(value){
+				return await Tools.checkCompany(value);
+			})
+
+	],
+	getCVbyToken: [
+		param('cvToken')
+			.exists()
+			.withMessage('Se requiere token')
+	],
 	results(req,res,next){
 		const errors = validationResult(req);
 		if(!errors.isEmpty()) {
