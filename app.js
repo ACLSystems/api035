@@ -64,12 +64,16 @@ app.on('ready',() => {
 
 	app.emit('initComplete');
 
-	console.log('Rutas disponibles: ');
-	app._router.stack.forEach(r => {
-		if(r.route && r.route.path){
-			console.log(`	path: ${r.route.path} methods: ${JSON.stringify(r.route.methods)}`);
-		}
-	});
+	const nodeEnv = process.env.NODE_ENV || 'development';
+
+	if(nodeEnv !== 'production') {
+		console.log('Rutas disponibles: ');
+		app._router.stack.forEach(r => {
+			if(r.route && r.route.path){
+				console.log(`	path: ${r.route.path} methods: ${JSON.stringify(r.route.methods)}`);
+			}
+		});
+	}
 });
 
 module.exports = app;
