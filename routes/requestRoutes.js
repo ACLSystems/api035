@@ -10,4 +10,7 @@ module.exports = (app) => {
 	app.get('/api/v1/requests',
 		RequestController.listMyRequests
 	);
+	app.patch('/api/v1/request',
+		RequestController.updateFresh
+	);
 };

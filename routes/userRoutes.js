@@ -5,6 +5,9 @@ const Validate 				= require('../middleware/validateUser'			);
 
 module.exports = (app) => {
 
+	app.get('/api/test',
+		UserController.test
+	);
 	app.post('/api/v1/logout',
 		Validate.logout,
 		Validate.results,
@@ -69,6 +72,9 @@ module.exports = (app) => {
 	app.get('/api/v1/operator/cvs',
 		UserController.listCVs
 	);
+	app.get('/api/v1/requester/cvs',
+		UserController.listCVs
+	);
 	app.get('/api/v1/supervisor/user',
 		Validate.search,
 		Validate.results,
@@ -81,6 +87,12 @@ module.exports = (app) => {
 	);
 	app.get('/api/v1/mypublicity',
 		PublicityController.myPublicity
+	);
+	app.get('/api/v1/apikey',
+		UserController.generateApiKey
+	);
+	app.delete('/api/v1/apikey',
+		UserController.generateApiKey
 	);
 	app.patch('/api/v1/user/addemail',
 		Validate.addEmail,

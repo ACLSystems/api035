@@ -269,23 +269,61 @@ module.exports = {
 			};
 		}
 		delete query.date;
-		// console.log(query);
-		try {
-			const docs = await Attachment.find(query)
-				.select('type documentType documentNumber company user created updated referenceDate beginDate endDate');
-			if(docs.length > 0) {
-				return res.status(StatusCodes.OK).json(docs);
-			}
-			return res.status(StatusCodes.OK).json({
-				'message': 'No se encontraron documentos con ese criterio de búsqueda'
+		console.log(query);
+		const docs = await Attachment.find(query)
+			.select('type documentType documentNumber company user created updated referenceDate beginDate endDate').catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
+					error: e.message
+				});
 			});
-		} catch (e) {
-			console.log(e);
-			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e.message
-			});
+		if(docs.length > 0) {
+			return res.status(StatusCodes.OK).json(docs);
 		}
+		return res.status(StatusCodes.OK).json({
+			'message': 'No se encontraron documentos con ese criterio de búsqueda'
+		});
+	}, //search
+
+	async searchMine(req,res) {
+		const keyUser = res.locals.user;
+		var query = Object.assign({},req.query);
+		query.user = keyUser._id;
+		var date = null;
+		if(query.date) {
+			date = Tools.transformDate(query.date);
+		}
+		var beginDate = null;
+		if(query.beginDate) {
+			beginDate = Tools.transformDate(query.beginDate);
+		}
+		var endDate = null;
+		if(query.endDate) {
+			endDate = Tools.transformDate(query.endDate);
+		}
+		if(date || beginDate || endDate) {
+			query.referenceDate = {
+				$gte: (!beginDate) ? new Date(date.getFullYear(), date.getMonth(), 1) : beginDate,
+				$lte:  (!endDate) ? new Date(date.getFullYear(), date.getMonth() + 1, 0) : endDate
+			};
+		}
+		delete query.date;
+		console.log(query);
+		const docs = await Attachment.find(query)
+			.select('type documentType documentNumber company user created updated referenceDate beginDate endDate').catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
+					error: e.message
+				});
+			});
+		if(docs.length > 0) {
+			return res.status(StatusCodes.OK).json(docs);
+		}
+		return res.status(StatusCodes.OK).json({
+			'message': 'No se encontraron documentos con ese criterio de búsqueda'
+		});
 	}, //search
 
 	async get(req,res) {

@@ -111,7 +111,10 @@ module.exports = {
 	newPass : [
 		body('password')
 			.exists()
-			.withMessage('Se requiere password')
+			.withMessage('Se requiere password'),
+		body('newpass')
+			.exists()
+			.withMessage('¿Cuál sería el nuevo password?')
 	],
 	initiateCV: [
 		body('identifier')

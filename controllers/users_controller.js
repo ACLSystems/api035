@@ -4,6 +4,12 @@ const manageError = require('../shared/errorManagement').manageError;
 
 module.exports = {
 
+	async test(req,res) {
+		res.status(StatusCodes.OK).json({
+			message: 'Hello'
+		});
+	}, // test
+
 	async logout(req,res) {
 		const keyUser = res.locals.user;
 		const token = res.locals.token;
@@ -642,7 +648,7 @@ module.exports = {
 				message: 'Contraseña no coincide'
 			});
 		}
-		user.password = req.body.password;
+		user.password = req.body.newpass;
 		await user.save();
 		const mail = require('../shared/mail');
 		await mail.sendMail(
@@ -793,6 +799,83 @@ module.exports = {
 			message: 'Se ha enviado correo con password de un solo uso'
 		});
 	}, //generateOneTimePassword
+
+	async generateApiKey(req,res) {
+		const keyUser = res.locals.user;
+		const {
+			isAdmin,
+			isTechAdmin
+		} = keyUser.roles;
+		if(!isAdmin && !isTechAdmin) {
+			return res.status(StatusCodes.FORBIDDEN).json({
+				message: 'No tienes permisos para generar apiKey'
+			});
+		}
+		const user = await User.findById(keyUser._id).catch(error => {
+			console.log(error);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error al generar el api key. Favor de intentar más tarde'
+			});
+		});
+		if(!user) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Tu usuario no se encuentra en la base!!'
+			});
+		}
+		if(user.apiKey) {
+			return res.status(StatusCodes.OK).json({
+				apiKey: user.apiKey
+			});
+		}
+		const nanoid = require('nanoid');
+		const generate = nanoid.customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 35);
+		user.apiKey = generate();
+		await user.save().catch(error => {
+			console.log(error);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error al generar el api key. Favor de intentar más tarde'
+			});
+		});
+		return res.status(StatusCodes.OK).json({
+			apiKey: user.apiKey
+		});
+	}, //generateApiKey
+
+	async renewApiKey(req,res) {
+		const keyUser = res.locals.user;
+		const {
+			isAdmin,
+			isTechAdmin
+		} = keyUser.roles;
+		if(!isAdmin && !isTechAdmin) {
+			return res.status(StatusCodes.FORBIDDEN).json({
+				message: 'No tienes permisos para generar apiKey'
+			});
+		}
+		const user = await User.findById(keyUser._id).catch(error => {
+			console.log(error);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error al generar el api key. Favor de intentar más tarde'
+			});
+		});
+		if(!user) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Tu usuario no se encuentra en la base!!'
+			});
+		}
+		const nanoid = require('nanoid');
+		const generate = nanoid.customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 35);
+		user.apiKey = generate();
+		await user.save().catch(error => {
+			console.log(error);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error al generar el api key. Favor de intentar más tarde'
+			});
+		});
+		return res.status(StatusCodes.OK).json({
+			apiKey: user.apiKey
+		});
+	}, //generateApiKey
 
 	async initiateCV(req, res) {
 		if(!req.body.identifier) {
@@ -962,10 +1045,10 @@ module.exports = {
 				console.log('No cvs');
 				return res.status(StatusCodes.OK).json([]);
 			}
-			console.log('cvs');
-			console.log(cvs);
+			// console.log('cvs');
+			// console.log(cvs);
 			const searchUsers = cvs.map(u => u.user);
-			console.log(searchUsers);
+			// console.log(searchUsers);
 			query = {
 				_id: {$in:searchUsers}
 			};
@@ -989,8 +1072,9 @@ module.exports = {
 		} else {
 			var query = {isCandidate: true, isActive: true};
 			if((isRequester || isSupervisor) && (!isAdmin && !isTechAdmin && !isOperator && !isBillAdmin)) {
-				query.companies = keyUser.companies.map(comp => comp.company);
+				query['companies.company'] = {$in: keyUser.companies.map(comp => comp.company._id)};
 			}
+			// console.log(query);
 			users = await User.find(query)
 				.select('identifier isActive isCandidate companies person phone addresses created updated')
 				.populate('companies.company', 'identifier name display')
@@ -1003,13 +1087,13 @@ module.exports = {
 					});
 				});
 			if(users && users.length < 1) {
-				console.log('No users');
+				// console.log('No users');
 				return res.status(StatusCodes.OK).json([]);
 			}
-			console.log('users');
-			console.log(users);
+			// console.log('users');
+			// console.log(users);
 			const searchUsers = users.map(u => u._id);
-			console.log(searchUsers);
+			// console.log(searchUsers);
 			query = {
 				user: {$in:searchUsers}
 			};
@@ -1023,11 +1107,11 @@ module.exports = {
 					});
 				});
 			if(cvs && cvs.length < 1) {
-				console.log('No cvs');
+				// console.log('No cvs');
 				return res.status(StatusCodes.OK).json([]);
 			}
-			console.log('cvs');
-			console.log(cvs);
+			// console.log('cvs');
+			// console.log(cvs);
 		}
 		const results = mergeArrays(users,cvs);
 		return res.status(StatusCodes.OK).json(results);

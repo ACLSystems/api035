@@ -18,6 +18,10 @@ module.exports = (app) => {
 		Validate.results,
 		AttachController.search
 	);
+	app.get('/api/v1/myattachments',
+		Validate.search,
+		AttachController.searchMine
+	);
 	app.get('/api/v1/attachment/:attachid',
 		Validate.get,
 		Validate.results,

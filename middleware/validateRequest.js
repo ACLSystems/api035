@@ -34,19 +34,41 @@ module.exports = async function(req,res,next){
 	}
 	try {
 		// quitarle el "Bearer " si existe
+		var user;
+		if(token.includes('Basic')) {
+			token = token.replace('Basic ','');
+			const buff = Buffer.from(token,'base64');
+			const decoded = buff.toString('utf-8');
+			const [ apiKey ] = decoded.split(':');
+			user = await User.findOne({
+				apiKey: apiKey,
+			}).populate({
+				path: 'companies.company',
+				select: '-history'
+			}).select('-password -__v -oneTimePassword -apiKey');
+			if(!user) {
+				return res.status(StatusCodes.UNAUTHORIZED).json({
+					'message': 'Token no válido. Favor de iniciar sesión'
+				});
+			}
+			res.locals.user = user.toObject();
+			user.lastAccess = new Date();
+			await user.save();
+			return next();
+		}
 		token = token.replace('Bearer ','');
 		// validar el token
 		var decoded = await jwt.verify(token,publicKey,verifyOptions);
 		var expired = new Date(0);
 		expired.setUTCSeconds(decoded.exp);
 		req.headers.key = decoded.sub;
-		var user = await User.findOne({
+		user = await User.findOne({
 			_id: decoded.userid,
 			'admin.tokens': token
 		}).populate({
 			path: 'companies.company',
 			select: '-history'
-		}).select('-password -__v');
+		}).select('-password -__v -oneTimePassword -apiKey');
 		if(!user) {
 			return res.status(StatusCodes.UNAUTHORIZED).json({
 				'message': 'Token no válido. Favor de iniciar sesión'
@@ -70,11 +92,13 @@ module.exports = async function(req,res,next){
 		if(
 			(url.indexOf('admin') !== -1 && dbUserObj.roles.isAdmin) ||
 			(url.indexOf('supervisor') !== -1 && dbUserObj.roles.isSupervisor) ||
+			(url.indexOf('requester') !== -1 && dbUserObj.roles.isRequester) ||
 			(url.indexOf('operator') !== -1 && dbUserObj.roles.isOperator) ||
 			(url.indexOf('techadmin') !== -1 && dbUserObj.roles.isTechAdmin) ||
 			(url.indexOf('billadmin') !== -1 && dbUserObj.roles.isBillAdmin) ||
 			(url.indexOf('admin') === -1 &&
 			url.indexOf('supervisor') === -1 &&
+			url.indexOf('requester') === -1 &&
 			url.indexOf('operator') === -1 &&
 			url.indexOf('techadmin') === -1 &&
 			url.indexOf('billadmin') === -1 &&
