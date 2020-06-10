@@ -105,8 +105,11 @@ CompanySchema.pre('save', async function(next) {
 					razon_social: this.name
 				}
 			};
-			console.log(options);
-			response = await axios(options);
+			// console.log(options);
+			response = await axios(options).catch(error => {
+				console.log('Error: '+error.response.status);
+				console.log(error.response.data);
+			});
 			if(response && response.data) {
 				console.log(`Creación de ${this.identifier} creado en fresh`);
 				if(response.data.department && response.data.department.id) {

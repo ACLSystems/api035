@@ -344,7 +344,7 @@ module.exports = {
 			};
 		}
 		if(keys.includes('companies')) {
-			console.log(query.companies);
+			// console.log(query.companies);
 			query.companies = JSON.parse(query.companies);
 			// console.log(query);
 			if(Array.isArray(query.companies)) {
@@ -518,7 +518,7 @@ module.exports = {
 
 	async confirmEmail(req,res) {
 		try {
-			const user = User.findOne({
+			const user = await User.findOne({
 				'person.email':req.body.email,
 				'admin.validationString':req.body.validationString
 			});
@@ -527,9 +527,15 @@ module.exports = {
 					'message': 'Usuario o respuesta no encontrados'
 				});
 			}
+			console.log(user);
 			user.admin.isEmailValidated = true;
 			user.admin.validationString = '';
 			user.admin.validationDate = null;
+			user.history.unshift({
+				by: user._id,
+				what: 'Validación de cuenta de correo'
+			});
+			await user.save();
 			return res.status(StatusCodes.OK).json({
 				'message': 'Cuenta confirmada'
 			});
@@ -588,7 +594,7 @@ module.exports = {
 			});
 		});
 		const link = `${server.portalUri}/#/landing/recovery/${user.admin.validationString}`;
-		console.log(link);
+		// console.log(link);
 		await mail.sendMail(
 			user.person.email,
 			user.person.name,
@@ -909,7 +915,7 @@ module.exports = {
 				});
 			});
 		var cv;
-		console.log(req.body);
+		// console.log(req.body);
 		if(!user) {
 			if(!req.body.name && !req.body.fatherName && !req.body.motherName && !req.body.email && !req.body.company) {
 				return res.status(StatusCodes.BAD_REQUEST).json({
@@ -1042,7 +1048,7 @@ module.exports = {
 					});
 				});
 			if(cvs && cvs.length < 1) {
-				console.log('No cvs');
+				// console.log('No cvs');
 				return res.status(StatusCodes.OK).json([]);
 			}
 			// console.log('cvs');
@@ -1064,11 +1070,11 @@ module.exports = {
 					});
 				});
 			if(users && users.length < 1) {
-				console.log('No users');
+				// console.log('No users');
 				return res.status(StatusCodes.OK).json([]);
 			}
-			console.log('users');
-			console.log(users);
+			// console.log('users');
+			// console.log(users);
 		} else {
 			var query = {isCandidate: true, isActive: true};
 			if((isRequester || isSupervisor) && (!isAdmin && !isTechAdmin && !isOperator && !isBillAdmin)) {
@@ -1134,7 +1140,7 @@ module.exports = {
 			});
 		}
 		const user = await User.findById(cv.user)
-			.select('person')
+			.select('identifier person')
 			.lean()
 			.catch(e => {
 				console.log(e);
@@ -1149,6 +1155,37 @@ module.exports = {
 		}
 		res.status(StatusCodes.OK).json(Object.assign({},user,cv));
 	}, //getCVbyToken
+
+	async updateCV(req,res) {
+		const CV = require('../src/cv');
+		var cv = await CV.findOne({cvToken: req.body.token})
+			.catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error al realizar la búsqueda de hoja de vida'
+				});
+			});
+		if(!cv) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message:'Hoja de vida no localizada'
+			});
+		}
+		cv = Object.assign(cv,req.body);
+		if(!cv.filledWhen) {
+			cv.filledWhen = new Date();
+		}
+		cv.modified = new Date();
+		await cv.save()
+			.catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error al guardar la hoja de vida'
+				});
+			});
+		res.status(StatusCodes.OK).json({
+			message: 'Hoja de vida actualizada'
+		});
+	}
 };
 
 function checkCompanies(A,B) {

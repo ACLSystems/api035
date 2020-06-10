@@ -1,8 +1,19 @@
 const StatusCodes = require('http-status-codes');
 const jwt = require('jsonwebtoken');
 const User = require('../src/users');
+const version = require('../version/version');
 
 module.exports = {
+
+	async hello(req,res) {
+		res.status(StatusCodes.OK).json({
+			app: version.app,
+			version: version.version,
+			vendor: `${version.vendor} @${version.year}`,
+			time: version.time.toString()
+		});
+	}, //hello
+
 	async login(req,res) {
 		const server = (global && global.config && global.config.server ) ? global.config.server: null;
 		const portalVersion = (global && global.config && global.config.portalVersion) ? global.config.portalVersion : 0;
@@ -83,7 +94,7 @@ module.exports = {
 		if(user.oneTimePassword) {
 			const now = new Date().getTime();
 			const oTPdateExp = user.oneTimePasswordDate.getTime() + 3600000;
-			console.log(`Now: ${now} Exp: ${oTPdateExp}`);
+			// console.log(`Now: ${now} Exp: ${oTPdateExp}`);
 			if(now > oTPdateExp) {
 				user.oneTimePassword = '';
 				user.oneTimePasswordDate = null;

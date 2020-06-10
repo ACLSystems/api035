@@ -14,15 +14,13 @@ module.exports = {
 			.equals('application/json'),
 		body('name')
 			.exists()
-			.withMessage('Debe existir nombre del puesto'),
-		body('category')
+			.withMessage('Puesto es requerido'),
+		body('area')
 			.exists()
-			.withMessage('Debe existir al menos una categoría')
-			.custom((value) => {
-				if(!Array.isArray(value)){
-					throw new Error('La(s) categoría(s) deben venir en arreglo');
-				}
-			})
+			.withMessage('Area/Departamento es requerido'),
+		body('place')
+			.exists()
+			.withMessage('Lugar de trabajo es requerido')
 	],
 	results(req,res,next) {
 		const errors = validationResult(req);

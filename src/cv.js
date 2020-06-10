@@ -1,4 +1,5 @@
 const mongoose			= require('mongoose');
+const auto 					= require('mongoose-sequence')(mongoose);
 const HistorySchema = require('./history');
 const AddressSchema = require('./address');
 const Schema 				= mongoose.Schema;
@@ -19,6 +20,7 @@ const QualityLifeSchema = new Schema({
 	rent								: Boolean,
 	familyHouse					: Boolean,
 	mortage							: Boolean,
+	motageCost 					: Number,
 	rentCost						: String,
 	infonavitRetention	: Boolean,
 	placeShift					: Boolean,
@@ -110,6 +112,45 @@ const JobSchema = new Schema({
 	place: String,
 },{_id: false});
 
+const CommentsSchema = new Schema({
+	text: String,
+	by: {
+		type: ObjectId,
+		ref: 'users',
+	},
+	when: {
+		type: Date,
+		default: new Date()
+	}
+},{_id: false});
+
+const StatusSchema = new Schema({
+	status: {
+		type: String,
+		enum: [
+			'Pendiente por llenar',
+			'Revisar',
+			'Relevante',
+			'Entrevista',
+			'Propuesta',
+			'Contratado',
+			'Rechazado'
+		],
+		default: 'Pendiente por llenar'
+	},
+	by: {
+		type: ObjectId,
+		ref: 'users',
+	},
+	when: {
+		type: Date,
+		default: new Date()
+	},
+	reason: {
+		type: String
+	}
+},{_id: false});
+
 const CVSchema = new Schema({
 	user						: {
 		type: ObjectId,
@@ -119,23 +160,50 @@ const CVSchema = new Schema({
 	request					: {
 		type: Number
 	},
-	filledBy:{
-		type: ObjectId,
-		ref: 'users'
+	folio: {
+		type: Number,
+		unique: true
 	},
 	filledWhen:{
 		type: Date
 	},
-	cvToken: String,
-	cvTokenDate: Date,
+	modified: {
+		type: Date
+	},
+	valid: {
+		type: Boolean,
+		default: true
+	},
+	cvToken					: String,
+	cvTokenDate			: Date,
+	birthDate				: Date,
 	birthPlace			: String,
-	currentAddress	: AddressSchema,
-	currentAddressDate	: Date,
-	history					: [HistorySchema],
+	gender					: {
+		type: String,
+		enum: [
+			'Masculino',
+			'Femenino'
+		]
+	},
+	reHire: {
+		type: Boolean,
+		default: true
+	},
+	comments: [CommentsSchema],
+	expireWhen: {
+		type: Date
+	},
+	status: [StatusSchema],
+	phone						: String,
+	cellPhone				: String,
+	messagePhone		: String,
 	civil						: {
 		type: String,
 		enum: ['Casado','Soltero']
 	},
+	currentAddress	: AddressSchema,
+	currentAddressDate	: Date,
+	history					: [HistorySchema],
 	childrenNumber	: Number,
 	workInfo				:	[WorkInfoSchema],
 	academicInfo		:	[AcademicInfoSchema],
@@ -163,8 +231,11 @@ const CVSchema = new Schema({
 	job: [JobSchema]
 });
 
+CVSchema.plugin(auto,{inc_field: 'folio'});
+
 CVSchema.index({user				: 1});
 CVSchema.index({request			: 1});
+CVSchema.index({folio 			: 1});
 CVSchema.index({cvToken			: 1},{sparse:true});
 CVSchema.index({'job.name'	: 1},{sparse:true});
 CVSchema.index({'job.place'	: 1},{sparse:true});

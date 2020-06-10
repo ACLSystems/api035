@@ -99,7 +99,15 @@ module.exports = (app) => {
 		Validate.results,
 		UserController.addEmail
 	);
+	app.patch('/api/user/confirmemail',
+		Validate.confirmEmail,
+		Validate.results,
+		UserController.confirmEmail
+	);
 	app.get('/api/getcvbytoken',
 		UserController.getCVbyToken
+	);
+	app.patch('/api/updatecv',
+		UserController.updateCV
 	);
 };

@@ -7,4 +7,7 @@ module.exports = (app) => {
 		Validate.results,
 		Auth.login
 	);
+	app.get('/',
+		Auth.hello
+	);
 };

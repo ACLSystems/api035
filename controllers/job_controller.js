@@ -4,7 +4,7 @@ const Job				= require('../src/jobs');
 module.exports = {
 	async create(req,res) {
 		const keyUser = res.locals.user;
-		var job = await Job.findOne({name:capitalize(req.body.name),category: capitalize(req.body.category)})
+		var job = await Job.findOne({name:capitalize(req.body.name),area: capitalize(req.body.area),place: req.body.place})
 			.catch(e => {
 				console.log(e);
 				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -13,23 +13,32 @@ module.exports = {
 			});
 		if(job) {
 			return res.status(StatusCodes.OK).json({
-				message: `Puesto con nombre ${job.name} y categoría ${job.category} ya había sido creado anteriormente`
+				message: `Puesto con nombre ${job.name} y departamento ${job.area} y lugar de trabajo ${job.place} ya había sido creado anteriormente`
 			});
 		}
 		job = new Job({
-			name:capitalize(req.body.name),
-			category: req.body.category,
+			name:capitalize(req.body.name).trim(),
+			area: req.body.area.trim(),
+			place: req.body.place.trim(),
+			functions: req.body.functions || '',
 			history: [{
 				by: keyUser._id,
 				what: 'Creación de puesto'
 			}]
 		});
 		await job.save();
-		res.status(StatusCodes.OK).json(job);
+		res.status(StatusCodes.CREATED).json(job);
 	}, //create
 
 	async list(req,res) {
-		const query = req.query.category || {};
+		var query = {};
+		if(req.query.area) {
+			query.area = req.query.area;
+		}
+		if(req.query.place) {
+			query.place = req.query.place;
+		}
+		// console.log(query);
 		const jobs = await Job.find(query)
 			.select('-history -__v')
 			.lean()

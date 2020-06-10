@@ -5,21 +5,41 @@ const Schema 				= mongoose.Schema;
 
 mongoose.plugin(schema => { schema.options.usePushEach = true;});
 
+const DocsSchema = new Schema({
+	visa: Boolean,
+	licencia: Boolean,
+	aptoMedico: Boolean,
+	antecedentes: Boolean,
+	gafete: Boolean
+},{_id:false});
+
 const JobSchema = new Schema({
 	name: {
 		type: String,
-		required: true,
-		unique: true
+		required: true
 	},
-	category: {
+	area: {
 		type: String,
 		required: true
 	},
-	history: [HistorySchema]
+	place: {
+		type: String,
+		required: true
+	},
+	functions: {
+		type: String,
+		default: ''
+	},
+	history: [HistorySchema],
+	docs: DocsSchema
 });
 
 JobSchema.index({name:1});
-JobSchema.index({category:1});
+JobSchema.index({area:1});
+JobSchema.index({place:1});
+JobSchema.index({
+	name: 1, area: 1, place: 1
+}, {unique: true});
 
 const Job = mongoose.model('jobs', JobSchema);
 module.exports = Job;

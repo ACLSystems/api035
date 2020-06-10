@@ -59,6 +59,18 @@ module.exports = {
 			})
 			.withMessage('Email debe ser una cuenta de correo válida')
 	],
+	confirmEmail: [
+		body('email')
+			.exists()
+			.withMessage('Email es requerido')
+			.custom(value => {
+				return value.match(/\S+@\S+\.\S+/);
+			})
+			.withMessage('Email debe ser una cuenta de correo válida'),
+		body('validationString')
+			.exists()
+			.withMessage('Token es requerido')
+	],
 	update: [
 		header('content-type','Encabezado incorrecto - solo application/json')
 			.equals('application/json'),

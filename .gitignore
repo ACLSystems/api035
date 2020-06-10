@@ -98,6 +98,7 @@ dist
 /sandbox/*
 /config/*
 /tests/*
+/misc/*
 /local_scripts/*
 *.log
 *.sql

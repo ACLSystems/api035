@@ -135,13 +135,15 @@ module.exports = {
 							subhireCreated = true;
 							await subhire.save();
 						}
+					} else {
+						console.log(`Esta empresa paga directo: ${emisor.identifier}`);
 					}
 					var pleaseSaveUser = false;
 					var user = await User.findOne({identifier: doc.receptor.rfc});
 					const receptor = (doc.complemento && doc.complemento.nomina12 && doc.complemento.nomina12.receptor) ? doc.complemento.nomina12.receptor : false;
 					var userCompany = {
 						isActive: true,
-						company: subhire._id,
+						company: subhire ? subhire._id : emisor._id,
 						employeeId: receptor ? receptor.numEmpleado : undefined,
 						jobTitle: receptor ? receptor.puesto : undefined,
 						jobRisk: receptor ? receptor.riesgoPuesto : undefined,
@@ -161,13 +163,12 @@ module.exports = {
 								curp: receptor ? receptor.curp : undefined
 							}
 						});
-						if(subhire) {
-							user.companies = [userCompany];
-						}
-						user.password = Secure.createSecurePass();
+
+						user.companies = [userCompany];
 						user.admin = {
-							initialPassword: user.password
+							initialPassword: Secure.createSecurePass()
 						};
+						user.password = user.admin.initialPassword;
 						userCreated = true;
 						pleaseSaveUser = true;
 					} else {
@@ -184,7 +185,12 @@ module.exports = {
 					if(pleaseSaveUser) {
 						await user.save();
 					}
-					data.company = subhire._id;
+
+					if(subhire) {
+						data.company = subhire._id;
+					} else {
+						data.company = emisor._id;
+					}
 					data.user = user._id;
 					dataCreated = true;
 					await data.save();
@@ -269,7 +275,7 @@ module.exports = {
 			};
 		}
 		delete query.date;
-		console.log(query);
+		// console.log(query);
 		const docs = await Attachment.find(query)
 			.select('type documentType documentNumber company user created updated referenceDate beginDate endDate').catch(e => {
 				console.log(e);
@@ -336,6 +342,19 @@ module.exports = {
 				return res.status(StatusCodes.OK).json({
 					'message': 'No existe documento'
 				});
+			}
+			// Este documento es del mismo usuario
+			if(doc.user +'' === keyUser._id + '') {
+				doc = await Attachment.findById(doc._id)
+					.select('attachment data mimeType type documentType documentNumber referenceDate beginDate endDate')
+					.lean();
+				if(!doc) {
+					return res.status(StatusCodes.OK).json({
+						'message': 'No existe documento'
+					});
+				}
+				doc.json = DocType.cfdi(JSON.parse(xml2json.toJson(doc.data)));
+				return res.status(StatusCodes.OK).json(doc);
 			}
 			// usuario no tiene roles
 			if(!Secure.checkPrivileges(keyUser,[

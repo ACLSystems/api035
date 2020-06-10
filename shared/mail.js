@@ -78,7 +78,7 @@ module.exports = {
 				}
 				await mail.save();
 			} else {
-				console.log(e.response.body);
+				// console.log(e.response.body);
 			}
 			return false;
 		}

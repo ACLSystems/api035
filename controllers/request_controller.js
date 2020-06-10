@@ -37,7 +37,7 @@ module.exports = {
 				if( response.data.service_request) {
 					const sr = response.data.service_request;
 					// console.log('Service Request');
-					console.log(sr);
+					// console.log(sr);
 					var request = new Request({
 						requester: keyUser._id,
 						freshid: +sr.id,
