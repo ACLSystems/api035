@@ -42,6 +42,10 @@ module.exports = (app) => {
 		Validate.newPass,
 		UserController.newPass
 	);
+	app.patch('/api/v1/resetPass',
+		Validate.resetPass,
+		UserController.resetPass
+	);
 	app.post('/api/v1/operator/initiatecv',
 		Validate.initiateCV,
 		UserController.initiateCV

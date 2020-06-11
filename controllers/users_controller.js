@@ -657,6 +657,94 @@ module.exports = {
 		});
 	}, //validatePassRecovery
 
+	async resetPass(req,res) {
+		const keyUser = res.locals.user;
+		const {
+			isAdmin,
+			isSupervisor,
+			isOperator,
+			isTechAdmin,
+			isBillAdmin
+		} = keyUser.roles;
+		if(!isAdmin && !isSupervisor && !isOperator && !isTechAdmin && !isBillAdmin) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No tienes privilegios'
+			});
+		}
+		const user = await User.findById(req.body.userid).catch(error => {
+			console.log(error);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error interno al tratar de localizar al usuario. Favor de intentar más tarde'
+			});
+		});
+		if(user.roles.isAdmin && !isAdmin) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No tienes suficientes privilegios - 100'
+			});
+		}
+		if(user.roles.isTechAdmin && (!isAdmin && !isBillAdmin)) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No tienes suficientes privilegios - 101'
+			});
+		}
+		if(user.roles.isBillAdmin && (!isAdmin && !isTechAdmin)) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No tienes suficientes privilegios - 102'
+			});
+		}
+		if(user.roles.isOperator && (!isAdmin && !isTechAdmin && !isBillAdmin)) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No tienes suficientes privilegios - 103'
+			});
+		}
+		if(user.roles.isSupervisor && (!isAdmin && !isTechAdmin && !isBillAdmin && !isOperator)) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No tienes suficientes privilegios - 104'
+			});
+		}
+		if(user.roles.isRequester && (!isAdmin && !isTechAdmin && !isBillAdmin && !isOperator && !isSupervisor)) {
+			// Falta poner que el supervisor tenga la misma compañía que el usuario
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No tienes suficientes privilegios - 104'
+			});
+		}
+		if(user.validatePassword(req.body.newPass)) {
+			return res.status(StatusCodes.OK).json({
+				message: `Nueva contraseña: ${req.body.newPass}`
+			});
+		}
+		const Secure = require('../shared/secure');
+		const pass = req.body.newPass || Secure.createSecurePass();
+		user.password = pass;
+		if(!user.admin) {
+			user.admin = {
+				initialPassword: pass
+			};
+		}
+		if(user.admin && !user.admin.password) {
+			user.admin.initialPassword = pass;
+		}
+		await user.save().catch(error => {
+			console.log(error);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error interno al crear password del usuario. Favor de intentar más tarde'
+			});
+		});
+		if(user.person && user.person.email) {
+			const mail = require('../shared/mail');
+			await mail.sendMail(
+				user.person.email,
+				user.person.name,
+				user._id,
+				'Contraseña modificada',
+				`<p>Se ha modificado la contraseña de tu cuenta para el Kiosco. Puedes modificarla una vez que hayas ingresado. La contraseña nueva es:</p><h4>${pass}</h4><p>Si tú no solicitaste una nueva contraseña ponte en contacto con la mesa de servicio.</p>`
+			);
+		}
+		return res.status(StatusCodes.OK).json({
+			message: `Nueva contraseña: ${pass}`
+		});
+	}, // resetPass
+
 	async newPass(req,res) {
 		const keyUser = res.locals.user;
 		const user = await User.findById(keyUser._id).catch(error => {

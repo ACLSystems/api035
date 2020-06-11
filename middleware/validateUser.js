@@ -128,6 +128,11 @@ module.exports = {
 			.exists()
 			.withMessage('¿Cuál sería el nuevo password?')
 	],
+	resetPass: [
+		body('userid')
+			.exists()
+			.withMessage('Se requiere el usuario')
+	],
 	initiateCV: [
 		body('identifier')
 			.exists()
