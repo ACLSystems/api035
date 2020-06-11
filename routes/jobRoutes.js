@@ -6,7 +6,7 @@ module.exports = (app) => {
 		Validate.create,
 		JobController.create
 	);
-	app.get('/api/v1/operator/jobs',
+	app.get('/api/v1/jobs',
 		JobController.list
 	);
 };

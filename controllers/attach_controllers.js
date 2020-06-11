@@ -315,7 +315,7 @@ module.exports = {
 			};
 		}
 		delete query.date;
-		console.log(query);
+		// console.log(query);
 		const docs = await Attachment.find(query)
 			.select('type documentType documentNumber company user created updated referenceDate beginDate endDate').catch(e => {
 				console.log(e);

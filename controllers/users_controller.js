@@ -220,8 +220,8 @@ module.exports = {
 					securePass.lower
 					]
 				});
-				if(!this.admin) {
-					this.admin = {
+				if(!user.admin) {
+					user.admin = {
 						initialPassword: this.password
 					};
 				}
@@ -230,11 +230,33 @@ module.exports = {
 				by: keyUser._id,
 				what: 'Creación del usuario'
 			}];
+			// console.log(user);
+
+			const server = (global.config && global.config.server) ? global.config.server : null;
+			if(server && server.portalUri && user.person && user.person.email) {
+				const nanoid = require('nanoid');
+				const generate = nanoid.customAlphabet('1234567890abcdefghijklmnopqrstwxyz', 35);
+				user.admin.validationString = generate();
+				const mail = require('../shared/mail');
+				const toName = user.person.name || 'Nombre de usuario no definido';
+				const link = `${server.portalUri}/#/landing/confirm/${user.admin.validationString}/${user.person.email}`;
+				await mail.sendMail(
+					user.person.email,
+					toName,
+					user._id,
+					'Activar cuenta para Kiosco',
+					`Se ha creado tu cuenta para el kiosco de servicios. Debes activarla siguiendo la liga: ${link}`
+				);
+			}
 			await user.save();
-			delete user.roles;
-			delete user.admin;
-			delete user.history;
-			return res.status(StatusCodes.CREATED).json(user);
+			const userReturned = {
+				identifier: user.identifier,
+				person: user.person || undefined,
+				companies: user.companies || undefined,
+				roles: user.roles || undefined,
+				initialPassword: (user.admin && user.admin.initialPassword) ? user.admin.initialPassword : undefined
+			};
+			return res.status(StatusCodes.CREATED).json(userReturned);
 		} catch (e) {
 			console.log(e);
 			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -527,7 +549,7 @@ module.exports = {
 					'message': 'Usuario o respuesta no encontrados'
 				});
 			}
-			console.log(user);
+			// console.log(user);
 			user.admin.isEmailValidated = true;
 			user.admin.validationString = '';
 			user.admin.validationDate = null;
