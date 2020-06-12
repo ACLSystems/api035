@@ -286,8 +286,13 @@ module.exports = {
 
 	async read(req,res) {
 		const keyUser = res.locals.user;
-		const isOperator = keyUser.roles.isOperator;
-		const isSupervisor = keyUser.roles.isSupervisor;
+		const {
+			isAdmin,
+			isTechAdmin,
+			isBillAdmin,
+			isOperator,
+			isSupervisor
+		} = keyUser.roles;
 		try {
 			var select;
 			if(isOperator) {
@@ -304,7 +309,7 @@ module.exports = {
 				})
 				.lean();
 			if(user) {
-				if(isSupervisor) {
+				if(isSupervisor && !isOperator && !isAdmin && !isTechAdmin && !isBillAdmin) {
 					if(checkCompanies(keyUser.companies,user.companies)) {
 						return res.status(StatusCodes.OK).json(user);
 					}
