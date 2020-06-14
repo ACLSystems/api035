@@ -74,8 +74,8 @@ module.exports = {
 		}
 	},
 
-	async transformDate(stringDate) {
-		console.log(typeof stringDate);
+	transformDate(stringDate) {
+		// console.log(typeof stringDate);
 		let returnDate = null;
 		if(stringDate.includes('-')) {
 			let parts = stringDate.split('-');

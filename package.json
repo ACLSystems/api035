@@ -27,7 +27,8 @@
     "socket.io-redis": "^5.2.0",
     "winston": "^3.2.1",
     "winston-daily-rotate-file": "^4.4.2",
-    "xml2json": "^0.12.0"
+    "xml2json": "^0.12.0",
+    "xslt": "^0.9.1"
   },
   "devDependencies": {
     "dotenv": "^8.2.0"

@@ -230,66 +230,97 @@ module.exports = {
 	// la idea es que en el siguiente API se obtenga el documento mediante el id
 	async search(req,res) {
 		const keyUser = res.locals.user;
+		const {
+			isAdmin,
+			isTechAdmin,
+			isBillAdmin,
+			isOperator,
+			isSupervisor
+		} = keyUser.roles;
+		if(!isAdmin &&
+			!isTechAdmin &&
+			!isBillAdmin &&
+			!isOperator &&
+			!isSupervisor
+		) {
+			return res.status(StatusCodes.FORBIDDEN).json({
+				message: 'No tienes suficientes privilegios'
+			});
+		}
+		if(!isSupervisor) {
+			// poner en el query las empresas a las que pertenece el super
+		}
 		var query = Object.assign({},req.query);
 		// Checar qué usuario es el que quiere consultar
 		if(!query.user && !query.company) {
 			query.user = keyUser._id;
 		}
-		const operatorCompanies = keyUser.assignedCompanies.filter(comp => comp.isActive).map(comp => comp.company._id + '');
-		if(keyUser.roles.isOperator &&
-			!keyUser.roles.isAdmin &&
-			!keyUser.roles.isTechAdmin &&
-			!keyUser.roles.isBillAdmin
-		){
-			if(query.company) {
-				if(!operatorCompanies.includes(req.query.company)) {
-					return res.status(StatusCodes.OK).json({
-						'message': 'No se encontraron documentos con ese criterio de búsqueda'
-					});
-				}
-			} else {
-				query.company = {
-					$in: operatorCompanies
-				};
-			}
-		}
+		// const operatorCompanies = keyUser.assignedCompanies.filter(comp => comp.isActive).map(comp => comp.company._id + '');
+		// if(keyUser.roles.isOperator &&
+		// 	!keyUser.roles.isAdmin &&
+		// 	!keyUser.roles.isTechAdmin &&
+		// 	!keyUser.roles.isBillAdmin
+		// ){
+		// 	if(query.company) {
+		// 		if(!operatorCompanies.includes(req.query.company)) {
+		// 			return res.status(StatusCodes.OK).json({
+		// 				'message': 'No se encontraron documentos con ese criterio de búsqueda'
+		// 			});
+		// 		}
+		// 	} else {
+		// 		query.company = {
+		// 			$in: operatorCompanies
+		// 		};
+		// 	}
+		// }
+
+		const now = new Date();
 		var date = null;
 		if(query.date) {
 			date = Tools.transformDate(query.date);
 		}
-
+		// console.log('date',date);
 		var beginDate = null;
 		if(query.beginDate) {
 			beginDate = Tools.transformDate(query.beginDate);
+		} else {
+			beginDate = date ?
+				new Date(date.getFullYear(),date.getMonth(), 1) :
+				new Date(now.getFullYear(),now.getMonth() -1, 1);
 		}
+		query.beginDate = {
+			$gte: beginDate
+		};
 
 		var endDate = null;
 		if(query.endDate) {
 			endDate = Tools.transformDate(query.endDate);
+		} else {
+			endDate = date ?
+				new Date(date.getFullYear(),date.getMonth() +1, 0) :
+				new Date(now.getFullYear(),now.getMonth() +1, 0);
 		}
+		query.endDate = {
+			$lte: endDate
+		};
 
-		if(date || beginDate || endDate) {
-			query.referenceDate = {
-				$gte: (!beginDate) ? new Date(date.getFullYear(), date.getMonth(), 1) : beginDate,
-				$lte:  (!endDate) ? new Date(date.getFullYear(), date.getMonth() + 1, 0) : endDate
-			};
-		}
 		delete query.date;
 		// console.log(query);
 		const docs = await Attachment.find(query)
-			.select('type documentType documentNumber company user created updated referenceDate beginDate endDate').catch(e => {
+			.select('type documentType subDocumentType documentNumber company user created updated referenceDate beginDate endDate').catch(e => {
 				console.log(e);
 				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 					'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
 					error: e.message
 				});
 			});
-		if(docs.length > 0) {
-			return res.status(StatusCodes.OK).json(docs);
-		}
-		return res.status(StatusCodes.OK).json({
-			'message': 'No se encontraron documentos con ese criterio de búsqueda'
-		});
+		// if(docs.length > 0) {
+		// 	return res.status(StatusCodes.OK).json(docs);
+		// }
+		return res.status(StatusCodes.OK).json(docs);
+		// return res.status(StatusCodes.OK).json({
+		// 	'message': 'No se encontraron documentos con ese criterio de búsqueda'
+		// });
 	}, //search
 
 	async searchMine(req,res) {
@@ -335,6 +366,7 @@ module.exports = {
 	async get(req,res) {
 		const keyUser = res.locals.user;
 		const xml2json = require('xml2json');
+		const Regimen = require('../src/taxRegimes');
 		try {
 			var doc = await Attachment.findById(req.params.attachid)
 				.select('company user');
@@ -354,6 +386,13 @@ module.exports = {
 					});
 				}
 				doc.json = DocType.cfdi(JSON.parse(xml2json.toJson(doc.data)));
+				if(doc.json && doc.json.emisor && doc.json.emisor.regimenFiscal) {
+					const regimen = await Regimen.findOne({taxRegime:doc.json.emisor.regimenFiscal}).catch(e => console.log(e));
+					if(regimen) {
+						doc.json.emisor.regimenFiscalDescripcion = regimen.description;
+					}
+				}
+				doc.json.cadena = await  xslt(doc.data,doc.json.complemento.timbreFiscalDigital.uuid);
 				return res.status(StatusCodes.OK).json(doc);
 			}
 			// usuario no tiene roles
@@ -377,6 +416,13 @@ module.exports = {
 					});
 				}
 				doc.json = DocType.cfdi(JSON.parse(xml2json.toJson(doc.data)));
+				if(doc.json && doc.json.emisor && doc.json.emisor.regimenFiscal) {
+					const regimen = await Regimen.findOne({taxRegime:doc.json.emisor.regimenFiscal}).catch(e => console.log(e));
+					if(regimen) {
+						doc.json.emisor.regimenFiscalDescripcion = regimen.description;
+					}
+				}
+				doc.json.cadena = await  xslt(doc.data,doc.json.complemento.timbreFiscalDigital.uuid);
 				return res.status(StatusCodes.OK).json(doc);
 			}
 			// Es algún admin?
@@ -399,6 +445,13 @@ module.exports = {
 					});
 				}
 				doc.json = await DocType.cfdi(JSON.parse(xml2json.toJson(doc.data)));
+				if(doc.json && doc.json.emisor && doc.json.emisor.regimenFiscal) {
+					const regimen = await Regimen.findOne({taxRegime:doc.json.emisor.regimenFiscal}).catch(e => console.log(e));
+					if(regimen) {
+						doc.json.emisor.regimenFiscalDescripcion = regimen.description;
+					}
+				}
+				doc.json.cadena = await xslt(doc.data,doc.json.complemento.timbreFiscalDigital.uuid);
 				return res.status(StatusCodes.OK).json(doc);
 			} else {
 				// Entonces es algún operador o un supervisor
@@ -423,7 +476,14 @@ module.exports = {
 						'message': 'No existe documento'
 					});
 				}
+				if(doc.json && doc.json.emisor && doc.json.emisor.regimenFiscal) {
+					const regimen = await Regimen.findOne({taxRegime:doc.json.emisor.regimenFiscal}).catch(e => console.log(e));
+					if(regimen) {
+						doc.json.emisor.regimenFiscalDescripcion = regimen.description;
+					}
+				}
 				doc.json = DocType.cfdi(JSON.parse(xml2json.toJson(doc.data)));
+				doc.json.cadena = await xslt(doc.data,doc.json.complemento.timbreFiscalDigital.uuid);
 				return res.status(StatusCodes.OK).json(doc);
 			}
 		} catch (e) {
@@ -435,6 +495,24 @@ module.exports = {
 		}
 	}, //get
 };
+
+async function xslt(xml,uuid) {
+	// console.log('XSLT');
+	const nodeEnv = process.env.NODE_ENV || 'development';
+	const fs = require('fs');
+	const { spawnSync } = require('child_process');
+	const dirApp = process.env.DIR_APP || '/usr/src/app';
+	const xsltFile = `${dirApp}/files/cadenaoriginal_TFD_1_1.xslt`;
+	const dir = (nodeEnv === 'production') ? '/usr/src/data' : '/tmp';
+	const xmlFile = `${dir}/${uuid}`;
+	await fs.writeFileSync(xmlFile,xml,'utf-8');
+	const xsltproc = await spawnSync('/usr/bin/xsltproc', [xsltFile, xmlFile]);
+	const buff = new Buffer.from(xsltproc.stdout);
+	await spawnSync('/bin/rm',[xmlFile]);
+	const buffString = buff.toString('utf-8');
+	// console.log(buffString);
+	return buffString;
+}
 //
 // async function createCompany(
 // 	name = undefined,
