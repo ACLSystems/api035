@@ -31,6 +31,9 @@ const ConfigSchema = new Schema({
 		serverUrl: String,
 		apiKey: String
 	},
+	dropbox: {
+
+	},
 	apiVersion: String,
 	portalVersion: Number,
 	history: [HistorySchema]

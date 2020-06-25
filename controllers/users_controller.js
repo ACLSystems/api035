@@ -1239,16 +1239,7 @@ module.exports = {
 	}, // listCVs
 
 	async getCVbyToken(req,res) {
-		const CV = require('../src/cv');
-		const cv = await CV.findOne({cvToken: req.query.token})
-			.select('-cvToken -cvTokenDate -__v -history')
-			.lean()
-			.catch(e => {
-				console.log(e);
-				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-					'message': 'Error al realizar la búsqueda de hoja de vida'
-				});
-			});
+		const cv = res.locals.cv;
 		if(!cv) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
 				message:'Hoja de vida no localizada'

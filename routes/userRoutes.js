@@ -1,4 +1,5 @@
 const UserController 	= require('../controllers/users_controller'	);
+const Auth = require('../middleware/auth');
 const PublicityController = require('../controllers/publicity_controller');
 const Validate 				= require('../middleware/validateUser'			);
 
@@ -109,6 +110,7 @@ module.exports = (app) => {
 		UserController.confirmEmail
 	);
 	app.get('/api/getcvbytoken',
+		Auth.loginByCVToken,
 		UserController.getCVbyToken
 	);
 	app.patch('/api/updatecv',

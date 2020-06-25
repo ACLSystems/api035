@@ -166,4 +166,23 @@ module.exports = {
 		// 	});
 		// }
 	}, //login
+
+	async loginByCVToken(req,res,next) {
+		const CV = require('../src/cv');
+		const token = req.query.token || req.body.cvtoken || undefined;
+		if(!token) {
+			res.locals.cv = null;
+			return next();
+		}
+		res.locals.cv = await CV.findOne({cvToken: token})
+			.select('-cvToken -cvTokenDate -__v -history')
+			.lean()
+			.catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error al realizar la búsqueda de hoja de vida'
+				});
+			});
+		next();
+	}, //loginByCVToken
 };

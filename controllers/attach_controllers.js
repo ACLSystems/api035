@@ -494,6 +494,53 @@ module.exports = {
 			});
 		}
 	}, //get
+
+	async create(req, res) {
+		var user = res.locals.user;
+		const cv = res.locals.cv;
+		const accessToken = global.config &&
+			global.config.dropbox &&
+			global.config.dropbox.accessToken;
+		if(!accessToken) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Acceso a servidor de archivos no configurado. Favor de contactar al administrador'
+			});
+		}
+		if(!user && !cv) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No tienes privilegios o no estás autorizado a cargar archivos'
+			});
+		}
+		var attach = new Attachment({
+			attachment: {
+				contentType: req.file.mimeType,
+				originalName: req.file.originalName
+			},
+			documentType: req.body.documentType || undefined,
+			documentName: req.file.originalName,
+			subDocumentType: req.body.subDocumentType || undefined,
+			company: req.body.company,
+			user: req.body.userid || user._id || cv.user,
+			created: new Date(),
+			updated: new Date(),
+			expirationDate: req.body.expirationDate || undefined,
+			history: [{
+				by: user._id || cv.user,
+				what: 'Creación del documento'
+			}]
+		});
+		await attach.save()
+			.catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error al intentar almacenar el archivo'
+				});
+			});
+		// var fileName = (req.file && req.file.filename) ? req.file.filename : (req.file && req.file.originalname) ? req.file.originalname : undefined;
+		// require('isomorphic-fetch');
+		// await new dropbox({accessToken: accessToken})
+		// 	.filesUpload()
+	}, // create
 };
 
 async function xslt(xml,uuid) {

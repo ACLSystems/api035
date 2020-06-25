@@ -11,7 +11,7 @@ const AttachmentSchema = new Schema ({
 	},
 	url: {
 		type: String
-	}, 
+	},
 	data: {
 		type: String
 	},
@@ -26,6 +26,9 @@ const AttachmentSchema = new Schema ({
 		type: String
 	},
 	documentName: {
+		type: String
+	},
+	path: {
 		type: String
 	},
 	subDocumentType: {
@@ -70,6 +73,9 @@ const AttachmentSchema = new Schema ({
 		type: Date
 	},
 	endDate: {
+		type: Date
+	},
+	expirationDate: {
 		type: Date
 	},
 	history: [HistorySchema]
