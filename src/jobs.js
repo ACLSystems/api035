@@ -26,10 +26,7 @@ const JobSchema = new Schema({
 		type: String,
 		required: true
 	},
-	functions: {
-		type: String,
-		default: ''
-	},
+	functions: [String],
 	history: [HistorySchema],
 	docs: DocsSchema
 });

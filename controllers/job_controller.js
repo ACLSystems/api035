@@ -1,5 +1,6 @@
 const StatusCodes = require('http-status-codes');
 const Job				= require('../src/jobs');
+const manageError = require('../shared/errorManagement').manageError;
 
 module.exports = {
 	async create(req,res) {
@@ -50,6 +51,76 @@ module.exports = {
 			});
 		res.status(StatusCodes.OK).json(jobs);
 	}, //create
+
+	async update(req,res) {
+		const keyUser = res.locals.user;
+		const {
+			isOperator,
+			isTechAdmin,
+			isAdmin,
+			isBillAdmin
+		} = keyUser.roles;
+		if(!isOperator && !isAdmin && !isTechAdmin && !isBillAdmin) {
+			return res.status(StatusCodes.FORBIDDEN).json({
+				message: 'No estás autorizado a realizar esta operación'
+			});
+		}
+		var updates = Object.keys(req.body);
+		const addToArray = req.body.add || false;
+		if(updates.length === 0) {
+			return res.status(StatusCodes.OK).json({
+				'message': 'No hay nada que modificar'
+			});
+		}
+		updates = updates.filter(item => item !== '_id');
+		updates = updates.filter(item => item !== 'history');
+		updates = updates.filter(item => item !== 'add');
+		const allowedUpdates = [
+			'name',
+			'area',
+			'place',
+			'functions'
+		];
+		const allowedArrayAdditions = [
+			'functions'
+		];
+		const isValidOperation = updates.every(update => allowedUpdates.includes(update));
+		const isValidAdditionOperation = updates.every(update => allowedArrayAdditions.includes(update));
+		if(!isValidOperation) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				'message': 'Existen datos inválidos o no permitidos en el JSON proporcionado'
+			});
+		}
+		var job = await Job.findById(req.params.jobid)
+			.catch(error => manageError(res,error,'Buscando job'));
+		if(!job) {
+			return res.status(StatusCodes.OK).json({
+				'message': 'No existe el job con el id proporcionado'
+			});
+		}
+		if(addToArray && isValidAdditionOperation) {
+			const addUpdates = updates.filter(f => allowedArrayAdditions.includes(f));
+			addUpdates.forEach(allowedArray => {
+				job[allowedArray].push(req.body[allowedArray]);
+				job.history.unshift({
+					by: keyUser._id,
+					what: `Adición: ${addUpdates.join()}`
+				});
+				delete req.body[allowedArray];
+			});
+		}
+		job = Object.assign(job,req.body);
+		job.history.unshift({
+			by: keyUser._id,
+			what: `Modificaciones: ${updates.join()}`
+		});
+		await job.save()
+			.catch(error => manageError(res,error,'Guardando job'));
+		var jobToSend = job.toObject();
+		delete jobToSend.history;
+		delete jobToSend.__v;
+		return res.status(StatusCodes.OK).json(jobToSend);
+	}, // update
 };
 
 function capitalize(phrase) {

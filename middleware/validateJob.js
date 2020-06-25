@@ -1,7 +1,7 @@
 const {
 	body,
 	header,
-	// param,
+	param,
 	// query,
 	validationResult
 } 	= require('express-validator');
@@ -21,6 +21,12 @@ module.exports = {
 		body('place')
 			.exists()
 			.withMessage('Lugar de trabajo es requerido')
+	],
+	update: [
+		header('content-type','Encabezado incorrecto - solo application/json')
+			.equals('application/json'),
+		param('jobid')
+			.exists('jobid es requerido')
 	],
 	results(req,res,next) {
 		const errors = validationResult(req);
