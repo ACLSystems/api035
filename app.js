@@ -11,6 +11,7 @@ const app = express();
 db(app);
 
 app.on('ready',() => {
+	const cache = require('./src/cache'); // eslint-disable-line
 	const jsonBodyLimit	= global.config.routes.jsonBodyLimit || '50mb';
 	const publicRoutes = require('./routes/publicRoutes');
 	const userRoutes = require('./routes/userRoutes');

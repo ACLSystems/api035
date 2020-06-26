@@ -29,10 +29,18 @@ const ConfigSchema = new Schema({
 	},
 	fresh: {
 		serverUrl: String,
-		apiKey: String
+		apiKey: String,
+		usersCategory: Number,
+		publicFolder: Number,
+		usersFolder: Number
 	},
-	dropbox: {
+	fileRepo: {
 
+	},
+	cache: {
+		url: String,
+		timeToLiveSessions: Number,
+		timeToLive: Number
 	},
 	apiVersion: String,
 	portalVersion: Number,

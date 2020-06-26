@@ -1,5 +1,6 @@
 const Validate	= require('../middleware/validatePublic');
 const Auth 			= require('../middleware/auth');
+const KBController = require('../controllers/kb_controller');
 
 module.exports = (app) => {
 	app.post('/login',
@@ -9,5 +10,8 @@ module.exports = (app) => {
 	);
 	app.get('/',
 		Auth.hello
+	);
+	app.get('/getpublichelp',
+		KBController.listPublic
 	);
 };
