@@ -11,7 +11,7 @@ module.exports = (app) => {
 	app.get('/',
 		Auth.hello
 	);
-	app.get('/getpublichelp',
+	app.get('/publichelp',
 		KBController.listPublic
 	);
 };

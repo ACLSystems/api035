@@ -1,6 +1,7 @@
 const UserController 	= require('../controllers/users_controller'	);
 const Auth = require('../middleware/auth');
 const PublicityController = require('../controllers/publicity_controller');
+const KBController = require('../controllers/kb_controller');
 const Validate 				= require('../middleware/validateUser'			);
 
 
@@ -8,6 +9,9 @@ module.exports = (app) => {
 
 	app.get('/api/test',
 		UserController.test
+	);
+	app.get('/api/v1/userhelp',
+		KBController.listUsers
 	);
 	app.post('/api/v1/logout',
 		Validate.logout,
@@ -104,6 +108,11 @@ module.exports = (app) => {
 		Validate.results,
 		UserController.addEmail
 	);
+	app.patch('/api/v1/adduseremail',
+		Validate.addUserEmail,
+		Validate.results,
+		UserController.addUserEmail
+	);
 	app.patch('/api/user/confirmemail',
 		Validate.confirmEmail,
 		Validate.results,
@@ -115,5 +124,8 @@ module.exports = (app) => {
 	);
 	app.patch('/api/updatecv',
 		UserController.updateCV
+	);
+	app.patch('/api/v1/modifycv/:cvid',
+		UserController.modifyCV
 	);
 };

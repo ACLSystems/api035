@@ -37,7 +37,12 @@ module.exports = {
 		updates = updates.filter(item => item !== 'history');
 		const allowedUpdates = [
 			'server',
-			'routes'
+			'routes',
+			'fresh',
+			'mail',
+			'cache',
+			'fileRepo',
+			'apiVersion'
 		];
 		const isValidOperation = updates.every(update => allowedUpdates.includes(update));
 		if(!isValidOperation) {
@@ -76,10 +81,30 @@ module.exports = {
 						config.server,
 						req.body.server);
 				}
+				if(req.body.mail) {
+					config.mail = Object.assign(
+						config.mail,
+						req.body.mail);
+				}
 				if(req.body.routes) {
 					config.routes = Object.assign(
 						config.routes,
 						req.body.routes);
+				}
+				if(req.body.fresh) {
+					config.fresh = Object.assign(
+						config.fresh,
+						req.body.fresh);
+				}
+				if(req.body.fileRepo) {
+					config.fileRepo = Object.assign(
+						config.fileRepo,
+						req.body.fileRepo);
+				}
+				if(req.body.cache) {
+					config.cache = Object.assign(
+						config.cache,
+						req.body.cache);
 				}
 				config.history.unshift(history);
 			}
@@ -107,4 +132,64 @@ module.exports = {
 		}
 	}, //set
 
+	async getFreshConfig(req,res) {
+		const result = await getConfigFromFresh();
+		if(result.error) {
+			return res.status(result.status).json(result);
+		}
+		res.status(StatusCodes.OK).json(result);
+	}, //getFreshConfig
+
 };
+
+
+async function getConfigFromFresh(){
+	const fresh = ( global && global.config && global.config.fresh ) ? global.config.fresh : null;
+	// console.log(fresh);
+	if(!fresh) {
+		console.log('No... no hay configuración para conectarnos con fresh');
+		// return res.status(StatusCodes.NOT_IMPLEMENTED).json({
+		// 	'message': 'El servidor no tiene la configuración para cargar artículos de conocimiento'
+		// });
+		return {
+			message: 'El servidor no tiene la configuración para extraer carpetas',
+			error: 'Error de configuración',
+			status: StatusCodes.NOT_IMPLEMENTED
+		};
+	}
+	if(!fresh.serverUrl) {
+		console.log('No... no hay configuración para conectarnos con fresh');
+		// return res.status(StatusCodes.NOT_IMPLEMENTED).json({
+		// 	'message': 'El servidor no tiene la configuración para cargar artículos de conocimiento públicos'
+		// });
+		return {
+			message: 'El servidor no tiene la configuración para extraer carpetas',
+			error: 'Error de configuración',
+			status: StatusCodes.NOT_IMPLEMENTED
+		};
+	}
+	const auth = new Buffer.from(fresh.apiKey + ':X');
+	var options = {
+		method: 'get',
+		url: fresh.serverUrl + '/solution/categories.json',
+		headers: {
+			'Authorization': 'Basic ' + auth.toString('base64')
+		}
+	};
+	const axios = require('axios');
+	const response = await axios(options).catch(error => {
+		console.log(error);
+		return {
+			message: 'Hubo un error en la comunicación con Fresh',
+			error: error.response.data,
+			status: StatusCodes.INTERNAL_SERVER_ERROR
+		};
+		// res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+		// 	message: 'Hubo un error en la comunicación con Fresh',
+		// 	error: error.response.data
+		// });
+	});
+	if(response && response.data) {
+		return response.data;
+	}
+}

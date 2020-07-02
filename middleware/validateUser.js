@@ -59,6 +59,21 @@ module.exports = {
 			})
 			.withMessage('Email debe ser una cuenta de correo válida')
 	],
+	addUserEmail: [
+		body('email')
+			.exists()
+			.withMessage('Email es requerido')
+			.custom(value => {
+				return value.match(/\S+@\S+\.\S+/);
+			})
+			.withMessage('Email debe ser una cuenta de correo válida'),
+		body('identifier')
+			.optional()
+			.custom(value => {
+				return value.match(/^([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])$/);
+			})
+			.withMessage('Identificador debe ser un RFC válido')
+	],
 	confirmEmail: [
 		body('email')
 			.exists()

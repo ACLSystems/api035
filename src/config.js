@@ -32,7 +32,12 @@ const ConfigSchema = new Schema({
 		apiKey: String,
 		usersCategory: Number,
 		publicFolder: Number,
-		usersFolder: Number
+		usersFolder: Number,
+		requesterFolder: Number,
+		superFolder: Number,
+		operatorFolder: Number,
+		techFolder: Number,
+		billFolder: Number
 	},
 	fileRepo: {
 

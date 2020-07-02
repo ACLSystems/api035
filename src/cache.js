@@ -17,6 +17,7 @@ if(!cache) {
 	const timeToLiveSessions = cache.timeToLiveSessions || 900;
 	const timeToLive = cache.timeToLive || 900;
 	const redisClient = redis.createClient(options);
+	// console.log(options);
 	redisClient.hget 			= promisify(redisClient.hget);
 	redisClient.hgetall 	= promisify(redisClient.hgetall);
 	redisClient.hmset 		= promisify(redisClient.hmset);

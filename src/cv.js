@@ -30,27 +30,29 @@ const QualityLifeSchema = new Schema({
 },{_id: false});
 
 const HealthSchema = new Schema({
-	hobbies							: [String],
-	alcohol							: Boolean,
+	hobbies							: String,
+	// alcohol							: Boolean,
 	alcoholFrecuency		: {
 		type: String,
 		enum: [
+			'No bebo',
 			'Diario',
 			'Una vez a la semana',
 			'Una vez al mes'
 		]
 	},
-	tobacco							: Boolean,
+	// tobacco							: Boolean,
 	tobaccoFrecuency		: {
 		type: String,
 		enum: [
+			'No fumo',
 			'Diario',
 			'Una vez a la semana',
 			'Una vez al mes'
 		]
 	},
 	mainStrength: String,
-	mainOportunityArea: String
+	mainOpportunityArea: String
 });
 
 const ReferencesSchema = new Schema({
@@ -134,6 +136,7 @@ const StatusSchema = new Schema({
 			'Entrevista',
 			'Propuesta',
 			'Contratado',
+			'No acepta',
 			'Rechazado'
 		],
 		default: 'Pendiente por llenar'

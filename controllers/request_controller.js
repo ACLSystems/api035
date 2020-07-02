@@ -26,7 +26,7 @@ module.exports = {
 				options.data = req.body.data;
 			}
 			var response = await axios(options).catch(error => {
-				console.log(error);
+				console.log(error.response.data);
 				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 					message: 'Hubo un error en la comunicación con Fresh',
 					error: error.response.data

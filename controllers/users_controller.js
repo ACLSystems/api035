@@ -543,6 +543,94 @@ module.exports = {
 		}
 	}, //addEmail
 
+	async addUserEmail(req,res) {
+		const keyUser = res.locals.user;
+		const {
+			isAdmin,
+			isBillAdmin,
+			isOperator,
+			isTechAdmin,
+			isSupervisor
+		} = keyUser.roles;
+		if(!isAdmin && !isBillAdmin && !isOperator && !isTechAdmin && !isSupervisor) {
+			return res.status(StatusCodes.FORBIDDEN).json({
+				message: 'No tienes privilegios'
+			});
+		}
+		const server = (global.config && global.config.server) ? global.config.server : null;
+		if(!server) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				'message': 'No hay configuración del servidor. Favor de contactar a la mesa de servicio'
+			});
+		}
+		if(server && !server.portalUri) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				'message': 'No hay configuración de portal. Favor de contactar a la mesa de servicio'
+			});
+		}
+		var user = await User
+			.findOne({identifier:req.body.identifier.toUpperCase()})
+			.catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					message: 'Hubo un error al intentar localizar al usuario. Favor de intentar más tarde',
+					error: e
+				});
+			});
+		if(!user) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'Usuario no encontrado'
+			});
+		}
+		if(user.person) {
+			user.person.email = req.body.email.toLowerCase();
+		} else {
+			user.person = {
+				email: req.body.email.toLowerCase()
+			};
+		}
+		const nanoid = require('nanoid');
+		const generate = nanoid.customAlphabet('1234567890abcdefghijklmnopqrstwxyz', 35);
+		if(user.admin) {
+			user.admin.validationString = generate();
+			user.admin.validationDate = new Date();
+		} else {
+			user.admin = {
+				validationString: generate(),
+				validationDate: new Date()
+			};
+		}
+		user.history.unshift({
+			by: keyUser._id,
+			when: new Date(),
+			what: 'Adicionando cuenta de correo'
+		});
+		await user.save();
+		const mail = require('../shared/mail');
+		const toName = user.person.name || 'No definido';
+		const link = `${server.portalUri}/#/landing/confirm/${user.admin.validationString}/${user.person.email}`;
+		await Promise.all([
+			mail.sendMail(
+				user.person.email,
+				toName,
+				user._id,
+				'Validar Correo',
+				`Se ha agregado una dirección de correo a tu cuenta del KIOSCO de servicios GIN. Debes validarla dando click en esta liga: ${link}`
+			),
+			mail.sendMail(
+				user.person.email,
+				toName,
+				user._id,
+				'Importante',
+				`En otro correo se te enviaron instrucciones para validar la dirección de correo de tu cuenta para ingresar al Kiosco de servicios. Ya que hayas validado tu cuenta, usa este password para ingresar al Kiosco: ${user.admin.initialPassword}. Para ingresar debes tener a la mano tu RFC con homoclave.`
+			)
+		]);
+		return res.status(StatusCodes.OK).json({
+			'message': 'Correo agregado',
+			'link': link
+		});
+	}, //addUserEmail
+
 	async confirmEmail(req,res) {
 		try {
 			const user = await User.findOne({
@@ -1063,7 +1151,13 @@ module.exports = {
 					name: req.body.jobName,
 					place: req.body.jobPlace
 				}],
-				request: req.body.request
+				request: req.body.request,
+				status: [{
+					status: 'Pendiente por llenar',
+					by: user._id,
+					when: new Date(),
+					reason: 'Creación de CV'
+				}]
 			});
 			cv.history.unshift({
 				by: keyUser._id,
@@ -1084,7 +1178,13 @@ module.exports = {
 						name: req.body.jobName,
 						place: req.body.jobPlace
 					}],
-					request: req.body.request
+					request: req.body.request,
+					status: [{
+						status: 'Pendiente por llenar',
+						by: user._id,
+						when: new Date(),
+						reason: 'Creación de CV'
+					}]
 				});
 				cv.history.unshift({
 					by: keyUser._id,
@@ -1220,6 +1320,13 @@ module.exports = {
 			};
 			cvs = await CV.find(query)
 				.select('-cvToken -cvTokenDate -__v')
+				.populate([{
+					path: 'status.by',
+					select: 'person'
+				},{
+					path: 'comments.by',
+					select: 'person'
+				}])
 				.lean()
 				.catch(e => {
 					console.log(e);
@@ -1281,6 +1388,12 @@ module.exports = {
 			cv.filledWhen = new Date();
 		}
 		cv.modified = new Date();
+		cv.status.unshift({
+			status: 'Revisar',
+			by: cv.user,
+			when: new Date(),
+			reason: 'Creación de CV'
+		});
 		await cv.save()
 			.catch(e => {
 				console.log(e);
@@ -1291,7 +1404,65 @@ module.exports = {
 		res.status(StatusCodes.OK).json({
 			message: 'Hoja de vida actualizada'
 		});
-	}
+	}, //updateCV
+
+	async modifyCV(req,res) {
+		const keyUser = res.locals.user;
+		const {
+			isRequester,
+			isOperator,
+			isBillAdmin,
+			isTechAdmin,
+			isAdmin
+		} = keyUser.roles;
+		if(!isAdmin && !isOperator && !isRequester && !isBillAdmin && !isTechAdmin) {
+			return res.status(StatusCodes.FORBIDDEN).json({
+				message: 'No tienes privilegios'
+			});
+		}
+		const CV = require('../src/cv');
+		const comments = req.body.comments ? {
+			text: req.body.comments,
+			by: keyUser._id,
+			when: new Date()
+		} : null;
+		const status = req.body.status ? {
+			status: req.body.status,
+			by: keyUser._id,
+			when: new Date(),
+			reason: req.body.reason
+		} : null;
+		var cv = await CV.findById(req.params.cvid).catch(e => {
+			console.log(e);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error al intentar localizar la hoja de vida'
+			});
+		});
+		if(!cv) {
+			return res.status(StatusCodes.OK).json({
+				message: 'Hoja de vida no encontrada'
+			});
+		}
+		const keys = Object.keys(req.body);
+		if(keys.includes('reHire') && (req.body.reHire === false || req.body.reHire === 'false')) {
+			cv.reHire = false;
+		}
+		if(comments) {
+			cv.comments.unshift(comments);
+		}
+		if(status) {
+			cv.status.unshift(status);
+		}
+		await cv.save().catch(e => {
+			console.log(e);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Error al intentar guardar la hoja de vida'
+			});
+		});
+		res.status(StatusCodes.OK).json({
+			message: 'Cambios guardados'
+		});
+	}, //modifyCV
 };
 
 function checkCompanies(A,B) {

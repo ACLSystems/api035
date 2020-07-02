@@ -10,4 +10,7 @@ module.exports = (app) => {
 		Validate.results,
 		ConfigController.setConfig
 	);
+	app.get('/api/v1/admin/getfreshconfig',
+		ConfigController.getFreshConfig
+	);
 };
