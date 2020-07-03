@@ -194,6 +194,27 @@ module.exports = {
 					data.user = user._id;
 					dataCreated = true;
 					await data.save();
+					if(user && user.person && user.person.email) {
+						const server = (global.config && global.config.server) ? global.config.server : null;
+						if(server && server.portalUri) {
+							if(doc && doc.complemento && doc.complemento.nomina12) {
+								const mail = require('../shared/mail');
+								const toName = user.person.name || 'Nombre de usuario no definido';
+								const options = {
+									year: 'numeric',
+									month: 'long',
+									day: 'numeric'
+								};
+								await mail.sendMail(
+									user.person.email,
+									toName,
+									user._id,
+									'Nuevo recibo de nómina',
+									`Se ha cargado un nuevo recibo de nómina en el Kiosco de servicios que abarca el periodo de ${doc.complemento.nomina12.fechaInicialPago.toLocaleDateString('es-MX',options)} a ${doc.complemento.nomina12.fechaFinalPago.toLocaleDateString('es-MX',options)}. Ingresa al Kiosco para descargarlo.`
+								);
+							}
+						}
+					}
 					return res.status(StatusCodes.CREATED).json({
 						'message': 'Documento cargado',
 						'emisorCreated': emisorCreated,
