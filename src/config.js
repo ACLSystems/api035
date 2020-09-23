@@ -40,7 +40,15 @@ const ConfigSchema = new Schema({
 		billFolder: Number
 	},
 	fileRepo: {
-
+		serverApi: String,
+		serverContent: String,
+		apiToken: String,
+		namespaceId: String,
+		teamMemberId: String,
+		rootFolder: String,
+		maxSize: Number,
+		maxNumber: Number,
+		tempDest: String
 	},
 	cache: {
 		url: String,

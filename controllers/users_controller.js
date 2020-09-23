@@ -343,6 +343,8 @@ module.exports = {
 		const perPage = query.perPage ? +query.perPage: 10;
 		const keys = Object.keys(query);
 		// console.log(keys);
+		delete query.page;
+		delete query.perPage;
 		if(keys.includes('person.name')) {
 			query['person.name'] = {
 				'$regex': query['person.name'],
@@ -421,34 +423,34 @@ module.exports = {
 		// }
 		if(isSupervisor && !isOperator) {
 			select = select.concat(' ', '-roles -freshid -isAccountable -char1 -char2 -flag1 -flag2' );
-			query.companies.company = keyUser.company._id;
-			query.companies.isActive = true;
+			// query.companies.company = keyUser.company._id;
+			// query.companies.isActive = true;
 		}
-		try {
-			// console.log(query);
-			const users = await User.find(query)
-				.select(select)
-				.limit(perPage)
-				.skip(perPage * page)
-				.sort({ identifier: 'asc'})
-				.populate({
-					path: 'companies.company',
-					select: ('isActive name display identifier')
-				})
-				.lean();
-			if(Array.isArray(users) && users.length > 0) {
-				return res.status(StatusCodes.OK).json(users);
-			}
-			return res.status(StatusCodes.OK).json({
-				'message': 'La búsqueda no arrojó usuarios'
+		// console.log(query);
+		const users = await User.find(query)
+			.select(select)
+			.limit(perPage)
+			.skip(perPage * page)
+			.sort({ identifier: 'asc'})
+			.populate({
+				path: 'companies.company',
+				select: ('isActive name display identifier')
+			})
+			.lean()
+			.catch(e => {
+				console.log(e);
+				res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
+					error: e.message
+				});
 			});
-		} catch (e) {
-			console.log(e);
-			res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-				'message': 'Error del servidor. Favor de comunicarse con la mesa de servicio',
-				error: e.message
-			});
+		if(Array.isArray(users) && users.length > 0) {
+			return res.status(StatusCodes.OK).json(users);
 		}
+		return res.status(StatusCodes.OK).json({
+			'message': 'La búsqueda no arrojó usuarios'
+		});
+
 	}, //search
 
 	async addEmail(req,res) {
@@ -1118,20 +1120,20 @@ module.exports = {
 				});
 			});
 		var cv;
-		// console.log(req.body);
 		if(!user) {
-			if(!req.body.name && !req.body.fatherName && !req.body.motherName && !req.body.email && !req.body.company) {
+			if(!req.body.name && !req.body.fatherName && !req.body.motherName && !req.body.company) {
 				return res.status(StatusCodes.BAD_REQUEST).json({
 					'message': 'Se requieren los campos de Nombre, Apellidos y Correo ya que el identificador solicitado no existe y es necesario para la creación del usuario'
 				});
 			}
+			const email = (req.body.email) ? req.body.email.toLowerCase() : undefined;
 			user = new User({
-				identifier: req.body.identifier,
+				identifier: req.body.identifier.toUpperCase(),
 				person: {
 					name: req.body.name,
 					fatherName: req.body.fatherName,
 					motherName: req.body.motherName,
-					email: req.body.email
+					email
 				},
 				isActive: true,
 				isAccountable: false,
@@ -1140,11 +1142,23 @@ module.exports = {
 			if(req.body.companies) {
 				user.companies = [...req.body.companies];
 			}
+			if(req.body.phone) {
+				user.phone = [req.body.phone];
+				user.person.phone = req.body.phone;
+			}
 			user.history.unshift({
 				by: keyUser._id,
 				what: 'Creación de usuario'
 			});
-			await user.save();
+			if(req.body.genre) user.person.genre = req.body.genre;
+			if(req.body.nss) user.person.imss = req.body.nss;
+			if(req.body.curp) user.person.curp = req.body.curp;
+			await user.save().catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					'message': 'Error al guardar al usuario'
+				});
+			});
 			cv = new CV({
 				user:user._id,
 				job: [{
@@ -1159,6 +1173,14 @@ module.exports = {
 					reason: 'Creación de CV'
 				}]
 			});
+			if(req.body.genre) cv.genre = req.body.genre;
+			if(req.body.phone) cv.phone = req.body.phone;
+			if(req.body.phone) cv.cellPhone = req.body.cellPhone;
+			if(req.body.reHire) cv.reHire = req.body.reHire;
+			if(req.body.comments) cv.comments = [{
+				text: req.body.comments,
+				when: new Date()
+			}];
 			cv.history.unshift({
 				by: keyUser._id,
 				what: 'Creación de hoja de vida'
@@ -1186,6 +1208,14 @@ module.exports = {
 						reason: 'Creación de CV'
 					}]
 				});
+				if(req.body.genre) cv.genre = req.body.genre;
+				if(req.body.phone) cv.phone = req.body.phone;
+				if(req.body.phone) cv.cellPhone = req.body.cellPhone;
+				if(req.body.reHire) cv.reHire = req.body.reHire;
+				if(req.body.comments) cv.comments = [{
+					text: req.body.comments,
+					when: new Date()
+				}];
 				cv.history.unshift({
 					by: keyUser._id,
 					what: 'Creación de hoja de vida'
@@ -1212,19 +1242,31 @@ module.exports = {
 			by: keyUser._id,
 			what: 'Creación de token'
 		});
-		await cv.save();
-		const mail = require('../shared/mail');
-		const link = `${server.portalUri}/#/landing/job/${cv.cvToken}`;
-		await mail.sendMail(
-			user.person.email,
-			user.person.name,
-			user._id,
-			'Completa tu solicitud de empleo',
-			`<p>Te han generado una liga para que puedas completar tu solicitud de empleo</p> <p>El formulario de solicitud tiene una vigencia de 14 días, por lo que te recomendamos llenarla cuanto antes.</p><p>Para acceder al formulario de la solicitud da clic en la siguiente liga:<p><a href="${link}"><h1>Da click aquí</h1></a><p>Si la liga anterior no funciona, copia y pega la siguiente liga en tu navegador:</p><p>${link}</p>`
-		);
-		res.status(StatusCodes.OK).json({
-			message: `Se ha enviado correo a ${user.identifier} (${user.person.email})`
+		await cv.save().catch(e => {
+			console.log(e);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				'message': 'Error al intentar guardar el CV'
+			});
 		});
+		if(!req.body.avoidEmail) {
+			const mail = require('../shared/mail');
+			const link = `${server.portalUri}/#/landing/job/${cv.cvToken}`;
+			await mail.sendMail(
+				user.person.email,
+				user.person.name,
+				user._id,
+				'Completa tu solicitud de empleo',
+				`<p>Te han generado una liga para que puedas completar tu solicitud de empleo</p> <p>El formulario de solicitud tiene una vigencia de 14 días, por lo que te recomendamos llenarla cuanto antes.</p><p>Para acceder al formulario de la solicitud da clic en la siguiente liga:<p><a href="${link}"><h1>Da click aquí</h1></a><p>Si la liga anterior no funciona, copia y pega la siguiente liga en tu navegador:</p><p>${link}</p>`
+			);
+			res.status(StatusCodes.OK).json({
+				message: `Se ha enviado correo a ${user.identifier} (${user.person.email})`
+			});
+		} else {
+			res.status(StatusCodes.OK).json({
+				message: `Se ha guardado usuario con RFC: ${user.identifier}`
+			});
+		}
+
 	}, // initiateCV
 
 	async listCVs(req,res) {

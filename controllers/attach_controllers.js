@@ -520,8 +520,8 @@ module.exports = {
 		var user = res.locals.user;
 		const cv = res.locals.cv;
 		const accessToken = global.config &&
-			global.config.dropbox &&
-			global.config.dropbox.accessToken;
+			global.config.fileRepo &&
+			global.config.fileRepo.apiToken;
 		if(!accessToken) {
 			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
 				message: 'Acceso a servidor de archivos no configurado. Favor de contactar al administrador'
@@ -562,6 +562,271 @@ module.exports = {
 		// await new dropbox({accessToken: accessToken})
 		// 	.filesUpload()
 	}, // create
+
+	async upload(req, res) {
+		const fileRepo = (global.config && global.config.fileRepo) ? global.config.fileRepo: null;
+		// console.log(fileRepo);
+		if(!fileRepo || !fileRepo.apiToken) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Acceso a servidor de archivos no configurado. Favor de contactar al administrador'
+			});
+		}
+		var keyUser = res.locals.user;
+		const cv = res.locals.cv;
+		if(!keyUser && !cv) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No estás autorizado'
+			});
+		}
+		if(!req.file) {
+			return res.status(StatusCodes.NOT_ACCEPTABLE).json({
+				message: 'No hay archivo que procesar'
+			});
+		}
+		// console.log(cv);
+		// console.log(keyUser);
+
+		const dir = fileRepo.rootFolder;
+		if(!dir) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Carpeta raiz no configurada. Favor de contactar al administrador'
+			});
+		}
+		const dir1 = req.body.company || null;
+		const dir2 = cv ? cv._id : keyUser._id;
+
+		if(!dir1 || !dir2) {
+			return res.status(StatusCodes.NOT_ACCEPTABLE).json({
+				message: 'No se encuentran las carpetas para almacenar archivo. Por favor seleccionar compañía'
+			});
+		}
+		// console.log(req.file);
+		var filename = (req.file && req.file.filename) ? req.file.filename : req.file.originalname;
+		if(req.file.size > fileRepo.maxSize) {
+			return res.status(StatusCodes.NOT_ACCEPTABLE).json({
+				message: 'Tamaño del archivo es más grande que el permitido'
+			});
+		}
+		const File = require('../src/files');
+		const file = new File({
+			name		: req.file.originalname,
+			mimetype: req.file.mimetype,
+			filename: filename,
+			path 		: `/${dir}/${dir1}/${dir2}`,
+			size 		: req.file.size
+		});
+		// console.log(file);
+
+		// const fs = require('fs');
+		const axios = require('axios');
+		// const localFile = await fs.readFileSync(fileRepo.tempDest);
+		var options = {
+			method: 'POST',
+			url: `${fileRepo.serverContent}/2/files/upload`,
+			headers: {
+				'Authorization': `Bearer ${fileRepo.apiToken}`,
+				'Dropbox-API-Select-User': fileRepo.teamMemberId,
+				'Dropbox-API-Path-Root': `{".tag":"namespace_id","namespace_id": "${fileRepo.namespaceId}"}`,
+				'Dropbox-API-Arg': `{"path":"/${dir}/${dir1}/${dir2}/${filename}"}`,
+				'Content-Type': 'application/octet-stream'
+			},
+			data: req.file.buffer
+		};
+		var errorOcurred = false;
+		var response = await axios(options).catch(e => {
+			console.log(e.response.data);
+			errorOcurred = true;
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Hubo un error en la transferencia del archivo',
+				error: e.response.data.error
+			});
+		});
+		if(errorOcurred) return;
+		if(response && response.data) {
+			file.fileid = response.data.id;
+			await file.save().catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					message: 'Error al almacenar archivo'
+				});
+			});
+			// response.data.fileid = file._id;
+			res.status(StatusCodes.OK).json({
+				name: response.data.name,
+				fileid: file._id
+			});
+		} else {
+			res.status(StatusCodes.OK).json({
+				message: 'No response'
+			});
+		}
+	}, // upload
+
+	async getFileLink(req,res) {
+		const fileRepo = (global.config && global.config.fileRepo) ? global.config.fileRepo: null;
+		// console.log(fileRepo);
+		if(!fileRepo || !fileRepo.apiToken) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Acceso a servidor de archivos no configurado. Favor de contactar al administrador'
+			});
+		}
+		var keyUser = res.locals.user;
+		const cv = res.locals.cv;
+		if(!keyUser && !cv) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No estás autorizado'
+			});
+		}
+		const File = require('../src/files');
+		const file = await File.findById(req.params.fileid).catch(e => {
+			console.log(e);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Hubo un error al intentar traer el id del archivo'
+			});
+		});
+		if(!file) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'ID de archivo no existe'
+			});
+		}
+		if(file.sharedLink) {
+			return res.status(StatusCodes.OK).json({
+				sharedLink: file.sharedLink
+			});
+		}
+		const axios = require('axios');
+		// const localFile = await fs.readFileSync(fileRepo.tempDest);
+		var options = {
+			method: 'POST',
+			url: `${fileRepo.serverApi}/2/sharing/create_shared_link_with_settings`,
+			headers: {
+				'Authorization': `Bearer ${fileRepo.apiToken}`,
+				'Dropbox-API-Select-User': fileRepo.teamMemberId,
+				'Dropbox-API-Path-Root': `{".tag":"namespace_id","namespace_id": "${fileRepo.namespaceId}"}`,
+				'Content-Type': 'application/json'
+			},
+			data: {
+				path: `${file.path}/${file.filename}`,
+				settings: {
+					requested_visibility: 'public',
+					audience: 'public',
+					access: 'viewer'
+				}
+			}
+		};
+		var errorOcurred = false;
+		var response = await axios(options).catch(e => {
+			console.log(e.response.data);
+			errorOcurred = true;
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Hubo un error en la transferencia del archivo',
+				error: e.response.data.error
+			});
+		});
+		if(errorOcurred) return;
+		if(response && response.data) {
+			file.sharedLink = response.data.url;
+			await file.save().catch(e => {
+				console.log(e);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					message: 'Error al almacenar archivo'
+				});
+			});
+			return res.status(StatusCodes.OK).json({
+				sharedLink: file.sharedLink
+			});
+		}
+		res.status(StatusCodes.OK).json({
+			message: 'No response'
+		});
+	}, //getFileLink
+
+	async getThumbnail(req,res) {
+		const fileRepo = (global.config && global.config.fileRepo) ? global.config.fileRepo: null;
+		// console.log(fileRepo);
+		if(!fileRepo || !fileRepo.apiToken) {
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Acceso a servidor de archivos no configurado. Favor de contactar al administrador'
+			});
+		}
+		var keyUser = res.locals.user;
+		const cv = res.locals.cv;
+		if(!keyUser && !cv) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'No estás autorizado'
+			});
+		}
+		const File = require('../src/files');
+		const file = await File.findById(req.params.fileid).catch(e => {
+			console.log(e);
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Hubo un error al intentar traer el id del archivo'
+			});
+		});
+		if(!file) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'ID de archivo no existe'
+			});
+		}
+		const axios = require('axios');
+		// const localFile = await fs.readFileSync(fileRepo.tempDest);
+		const apiArg = JSON.stringify(file.sharedLink ? {
+			resource: {
+				'.tag': 'link',
+				url: file.sharedLink
+			},
+			format: 'jpeg',
+			size: 'w256h256',
+			mode: 'strict'
+		} : {
+			resource: {
+				'.tag': 'path',
+				path: `${file.path}/${file.filename}`
+			},
+			format: 'jpeg',
+			size: 'w256h256',
+			mode: 'strict'
+		});
+		// console.log(apiArg);
+		var options = {
+			method: 'GET',
+			responseType: 'stream',
+			url: `${fileRepo.serverContent}/2/files/get_thumbnail_v2`,
+			headers: {
+				'Authorization': `Bearer ${fileRepo.apiToken}`,
+				'Dropbox-API-Select-User': fileRepo.teamMemberId,
+				'Dropbox-API-Path-Root': `{".tag":"namespace_id","namespace_id": "${fileRepo.namespaceId}"}`,
+				'Dropbox-API-Arg': apiArg
+			}
+		};
+		// console.log(options);
+		var errorOcurred = false;
+		var response = await axios(options).catch(e => {
+			console.log(e.response.data);
+			errorOcurred = true;
+			return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+				message: 'Hubo un error en la transferencia del archivo',
+				error: e.response.data.error
+			});
+		});
+		if(errorOcurred) return;
+		// console.log(response.data);
+		if(response && response.data) {
+			// const fs = require('fs');
+			// const myFile = `${fileRepo.tempDest}/${file._id}-${file.filename}.-thumb.jpg`;
+			// await response.data.pipe(fs.createWriteStream(myFile));
+			res.set({'Content-Disposition': `attachment; filename="${file.filename}.-thumb.jpg"`,'Content-type':'image/jpeg'});
+			// var fileStream = fs.createReadStream(myFile);
+			// fileStream.pipe(res);
+			// res.download(myFile);
+			response.data.pipe(res);
+			return;
+		} else {
+			res.status(StatusCodes.OK).json({
+				message: 'No response'
+			});
+		}
+	}, //getThumbnail
 };
 
 async function xslt(xml,uuid) {

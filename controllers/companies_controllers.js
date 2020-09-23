@@ -6,7 +6,7 @@ module.exports = {
 		const keyUser = res.locals.user;
 		try {
 			const companyFound = await Company.findOne({$or:[{name: req.body.name},{identifier:req.body.identifier}]})
-				.select('-history')
+				.select('-history -__v -middleware')
 				.populate([{
 					path: 'headUser',
 					select: ('identifier person isActive isAccountable')
@@ -45,7 +45,8 @@ module.exports = {
 		const isAdmin = (roles.isAdmin || roles.isTechAdmin || roles.isBillAdmin) ? true : false;
 		if(isAdmin) {
 			let company = await Company.findById(req.params.companyid)
-				.select('-history')
+				.populate('payersRelated customersRelated','-__v -history -middleare')
+				.select('-history -__v -middleware')
 				.lean();
 			if(company) {
 				return res.status(StatusCodes.OK).json(company);
@@ -81,7 +82,8 @@ module.exports = {
 			} else {
 				try {
 					const findCompany = await Company.findById(company)
-						.select('-history')
+						.populate('payersRelated customersRelated','-__v -history -middleware')
+						.select('-history -__v -middleware')
 						.lean();
 					if(findCompany) {
 						res.status(StatusCodes.OK).json(findCompany);
@@ -140,7 +142,7 @@ module.exports = {
 		try {
 			// console.log(query);
 			const companies = await Company.find(query)
-				.select('-history')
+				.select('-history -__v -middleware')
 				.limit(perPage)
 				.skip(perPage * page)
 				.sort({identifier: 'asc'})
@@ -181,6 +183,13 @@ module.exports = {
 			'type',
 			'isActive',
 			'headUser',
+			'freshid',
+			'headUser',
+			'primeUser',
+			'taxRegime',
+			'employerRegistration',
+			'customersRelated',
+			'payersRelated',
 			'primeUser',
 			'display',
 			'alias',
@@ -188,6 +197,9 @@ module.exports = {
 			'addresses'
 		];
 		const allowedArrayAdditions = [
+			'employerRegistration',
+			'customersRelated',
+			'payersRelated',
 			'alias',
 			'phone',
 			'addresses'

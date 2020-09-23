@@ -27,4 +27,10 @@ module.exports = (app) => {
 		Validate.results,
 		AttachController.get
 	);
+	app.get('/api/v1/getlink/:fileid',
+		AttachController.getFileLink
+	);
+	app.get('/api/v1/getthumbnail/:fileid',
+		AttachController.getThumbnail
+	);
 };

@@ -1,9 +1,10 @@
 const express = require('express');
-// const multer = require('multer');
+const multer = require('multer');
 const bodyParser = require('body-parser');
 const bodyParserJsonError = require('./shared/validateJSON');
 const helmet = require('helmet');
 const StatusCodes = require('http-status-codes');
+const AttachController = require('./controllers/attach_controllers');
 
 const db = require('./src/db'); // eslint-disable-line
 const app = express();
@@ -11,6 +12,15 @@ const app = express();
 db(app);
 
 app.on('ready',() => {
+	/* MULTER */
+	var upload = multer({
+		// dest: global.config.fileRepo.tempDest || '/usr/src/data/files',
+		storage: multer.memoryStorage(),
+		limits: {
+			fileSize: global.config.fileRepo.maxSize || 26214400,
+			files: global.config.fileRepo.maxNumber || 1
+		}
+	});
 	const cache = require('./src/cache'); // eslint-disable-line
 	const jsonBodyLimit	= global.config.routes.jsonBodyLimit || '50mb';
 	const publicRoutes = require('./routes/publicRoutes');
@@ -41,6 +51,11 @@ app.on('ready',() => {
 
 	// Todas las rutas debajo de /api/v1/ deben venir con token
 	app.all ('/api/v1/*', [require('./middleware/validateRequest')]);
+
+	app.post('/api/v1/file/upload',
+		upload.single('file'),
+		AttachController.upload
+	);
 
 	app.use(bodyParser.json({limit: jsonBodyLimit}));
 	app.use(bodyParserJsonError());

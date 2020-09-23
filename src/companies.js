@@ -36,9 +36,17 @@ const CompanySchema = new Schema ({
 		type: ObjectId,
 		ref: 'taxregimes'
 	},
-	employerRegistration: {
+	employerRegistration: [{
 		type: String
-	},
+	}],
+	customersRelated: [{
+		type: ObjectId,
+		ref: 'companies'
+	}],
+	payersRelated: [{
+		type: ObjectId,
+		ref: 'companies'
+	}],
 	display: String,
 	alias: [String],
 	phone: [String],
@@ -55,11 +63,81 @@ const CompanySchema = new Schema ({
 	updated: {
 		type: Date,
 		default: new Date()
+	},
+	middleware: {
+		type: Boolean,
+		default: false
 	}
 });
 
 CompanySchema.pre('save', function(next) {
 	this.updated = new Date();
+	next();
+});
+
+CompanySchema.pre('save', async function(next) {
+	const dmp = this.directModifiedPaths();
+	console.log(dmp);
+	if(dmp.includes('employerRegistration') && this.type === 'cliente' && !this.middleware) {
+		var payers = await Company.find({type: 'pagadora',employerRegistration: {$in:this.employerRegistration}});
+		if(payers.length === 0) {
+			throw new Error('No existe pagadora con los registros patronales de esta compañía');
+		}
+		for(let i=0;i<payers.length;i++) {
+			if(!payers[i].customersRelated.find(payer => payer + ''=== this._id)){
+				payers[i].customersRelated.push(this._id);
+				payers[i].middleware = true;
+				await payers[i].save();
+				payers[i].middleware = false;
+				await payers[i].save();
+			}
+			if(!this.payersRelated.find(payer => payer + '' === payers[i]._id)) {
+				this.payersRelated.push(payers[i]._id);
+			}
+		}
+	}
+	next();
+});
+
+CompanySchema.pre('save', async function(next) {
+	const dmp = this.directModifiedPaths();
+	console.log(dmp);
+	if(dmp.includes('customersRelated') && this.type === 'pagadora' && !this.middleware) {
+		var customers = await Company.find({type: {$not: /pagadora/}, _id: {$in: this.customersRelated}});
+		if(customers.length === 0) {
+			throw new Error('No existen clientes con el id definido en customersRelated');
+		}
+		for(let i=0;i<customers.length;i++) {
+			if(!customers[i].payersRelated.find(payer => payer + '' === this.id)) {
+				customers[i].payersRelated.push(this._id);
+				customers[i].middleware = true;
+				await customers[i].save();
+				customers[i].middleware = false;
+				await customers[i].save();
+			}
+		}
+	}
+	next();
+});
+
+CompanySchema.pre('save', async function(next) {
+	const dmp = this.directModifiedPaths();
+	console.log(dmp);
+	if(dmp.includes('payersRelated') && this.type !== 'pagadora' && !this.middleware) {
+		var payers = await Company.find({type:'pagadora', _id: {$in: this.payersRelated}});
+		if(payers.length === 0) {
+			throw new Error('No existen pagadoras con el id definido en payersRelated');
+		}
+		for(let i=0;i<payers.length;i++) {
+			if(!payers[i].customersRelated.find(payer => payer + '' === this.id)) {
+				payers[i].customersRelated.push(this._id);
+				payers[i].middleware = true;
+				await payers[i].save();
+				payers[i].middleware = false;
+				await payers[i].save();
+			}
+		}
+	}
 	next();
 });
 
@@ -121,10 +199,14 @@ CompanySchema.pre('save', async function(next) {
 	next();
 });
 
-CompanySchema.index({name				: 1});
-CompanySchema.index({identifier	: 1});
-CompanySchema.index({isActive		: 1});
-CompanySchema.index({freshid		: 1});
+CompanySchema.index({name									: 1});
+CompanySchema.index({type 								: 1});
+CompanySchema.index({employerRegistration	: 1});
+CompanySchema.index({customersRelated 		: 1});
+CompanySchema.index({payersRelated				: 1});
+CompanySchema.index({identifier						: 1});
+CompanySchema.index({isActive							: 1});
+CompanySchema.index({freshid							: 1});
 
 const Company = mongoose.model('companies', CompanySchema);
 module.exports = Company;

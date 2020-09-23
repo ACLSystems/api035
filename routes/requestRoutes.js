@@ -13,4 +13,10 @@ module.exports = (app) => {
 	app.patch('/api/v1/request',
 		RequestController.updateFresh
 	);
+	app.get('/api/v1/request/:ticketid/refresh',
+		RequestController.refreshTicket
+	);
+	app.post('/api/v1/reply/:ticketid',
+		RequestController.reply
+	);
 };

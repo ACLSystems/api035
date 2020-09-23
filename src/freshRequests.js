@@ -24,7 +24,14 @@ const RequestsSchema = new Schema({
 		ref: 'users'
 	},
 	comments: [{
-		type: String
+		body: String,
+		body_text: String,
+		created: Date,
+		id: Number,
+		user: {
+			type: ObjectId,
+			ref: 'users'
+		}
 	}],
 	data: {
 		type: Object
@@ -48,8 +55,28 @@ const RequestsSchema = new Schema({
 	agentName: {
 		type: String
 	},
+	agent: {
+		type: ObjectId,
+		ref: 'users'
+	},
 	freshStatus: {
-		type: String
+		type: String,
+		enum: [
+			'Abierto',
+			'Pendiente',
+			'Resuelto',
+			'Cerrado',
+			'En espera de autorización'
+		]
+	},
+	approvalStatus: {
+		type: String,
+		enum: [
+			'Pendiente',
+			'Aprobado',
+			'Rechazado',
+			'Sin aprobación'
+		]
 	},
 	lastUpdate: {
 		type: Date

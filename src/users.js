@@ -20,7 +20,10 @@ const PersonSchema = new Schema({
 	cellPhone: String,
 	genre: {
 		type: String,
-		enum: ['Hombre', 'Mujer']
+		enum: [
+			'Masculino',
+			'Femenino'
+		]
 	},
 	imss: {
 		type: Number
@@ -118,6 +121,13 @@ const CompaniesSchema = new Schema({
 	},
 	dailySalary: {
 		type: Number
+	},
+	freshReportingManager: {
+		type: Number
+	},
+	reportingManager: {
+		type: ObjectId,
+		ref: 'users'
 	}
 },{_id: false});
 
