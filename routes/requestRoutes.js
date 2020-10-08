@@ -13,6 +13,9 @@ module.exports = (app) => {
 	app.patch('/api/v1/request',
 		RequestController.updateFresh
 	);
+	app.patch('/api/v1/approvevacations',
+		RequestController.approveVacations
+	);
 	app.get('/api/v1/request/:ticketid/refresh',
 		RequestController.refreshTicket
 	);

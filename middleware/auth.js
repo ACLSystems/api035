@@ -104,6 +104,16 @@ module.exports = {
 		const isOk = await user.validatePassword(password);
 		// console.log(`isOk: ${isOk}`);
 		if(isOk) {
+			for(let i=0;i<user.companies.length;i++) {
+				let company = user.companies[i];
+				if(company.beginDate) {
+					const vacations = require('../shared/vacations').vacations;
+					const vacRes = await vacations(company);
+					console.log(vacRes);
+					user.companies[i].vacations = vacRes;
+				}
+			}
+			console.log(user.companies);
 			const payload = {
 				userid: user._id,
 				person: user.person,

@@ -1,6 +1,6 @@
 const StatusCodes = require('http-status-codes');
-const Request = require('../src/freshRequests');
-
+const Request 		= require('../src/freshRequests');
+const manageError = require('../shared/errorManagement').manageError;
 
 module.exports = {
 
@@ -60,8 +60,43 @@ module.exports = {
 		}
 	}, //createServiceRequest
 
+	async approveVacations(req,res) {
+		// const keyUser = res.locals.user;
+		console.log(req.body);
+		const User = require('../src/users');
+		var user = await User
+			.findOne({'person.email':req.body.email})
+			.catch(error => {
+				console.log(error);
+				return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+					message: 'Error al tratar de encontrar al usuario'
+				});
+			});
+		if(!user) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'Usuario no se encuentra'
+			});
+		}
+		for(let i=0;i<user.companies.length;i++) {
+			let vIndex = user.companies[i].vacationHistory.findIndex(vac => vac.freshid === req.body.freshid);
+			console.log(vIndex);
+			if(vIndex > -1) {
+				user.companies[i].vacationHistory[vIndex].approved = req.body.approve;
+				user.companies[i].vacationHistory[vIndex].approvedBy = req.body.approvedBy;
+				user.companies[i].vacationHistory[vIndex].approvalComments = req.body.approvalComments; 
+			}
+		}
+		await user.save().catch(error => {
+			manageError(res,error,'Error al intentar guardar al  usuario');
+			return;
+		});
+		res.status(StatusCodes.OK).json({
+			message: 'Status guardado'
+		});
+	}, //approveVacations
+
 	async updateFresh(req,res) {
-		const keyUser = res.locals.user;
+		// const keyUser = res.locals.user;
 		if(req.body.freshdesk_webhook) {
 			const freshwh = Object.assign({},req.body.freshdesk_webhook);
 			const [tt,ticketid] = freshwh.ticket_id.split('-');

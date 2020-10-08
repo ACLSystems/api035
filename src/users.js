@@ -93,6 +93,142 @@ const OperatorSchema = new Schema({
 		type: ObjectId,
 		ref: 'companies'
 	}
+},{_id: false});
+
+const VacationSchema = new Schema({
+	beginDate: {
+		type: Date
+	},
+	endDate: {
+		type: Date
+	},
+	submit: {
+		type: Date
+	},
+	totalDays: {
+		type: Number,
+		default: 0
+	},
+	approved: {
+		type: Boolean
+	},
+	approvedBy: {
+		type: String
+	},
+	approvalComments: {
+		type: String
+	},
+	justify: {
+		type: String
+	},
+	freshid: {
+		type: Number
+	},
+	processed: {
+		type: Boolean
+	}
+},{_id: false});
+
+VacationSchema.pre('save', async function(next) {
+	// console.log('Validando vacaciones',this.ownerDocument().identifier);
+	if(this.processed) {
+		return next();
+	}
+	this.submit = new Date(),
+	this.beginDate = new Date(
+		this.beginDate.getFullYear(),
+		this.beginDate.getMonth(),
+		this.beginDate.getDate(),
+		2,0,0
+	);
+	this.endDate = new Date(
+		this.endDate.getFullYear(),
+		this.endDate.getMonth(),
+		this.endDate.getDate(),
+		20,59,59
+	);
+	const calculateVacationDays = function(vacation, wday) {
+		// console.log('Entramos en calculateVacationDays');
+		const calculateWeekDays = function(date1,date2,wd) {
+			// console.log('Entramos en calculateWeekDays');
+			var currentDate = new Date(date1);
+			var days = 0;
+			const failsafe = 1000;
+			var i = 0;
+			while (currentDate < date2 && i < failsafe) {
+				// console.log('===> ',currentDate);
+				if(currentDate.getDay() === wd) days ++;
+				currentDate.setDate(currentDate.getDate() + 1);
+				i++;
+			}
+			return days;
+		};
+		const oneDay = 86400000; //24 * 60 * 60 * 1000 milisegundos
+		var totalDays =  Math.ceil(Math.abs(vacation.beginDate - vacation.endDate) / oneDay);
+		// console.log('TotalDays before procesing',totalDays);
+		if(wday) {
+			if(wday.daysByWeek) {
+				const calcDays = Math.floor(totalDays / wday.daysByWeek);
+				if(calcDays) {
+					totalDays = totalDays - calcDays;
+				}
+			} else {
+				if(wday.sunday) {
+					totalDays = totalDays - calculateWeekDays(vacation.beginDate,vacation.endDate,0);
+				}
+				if(wday.monday) {
+					totalDays = totalDays - calculateWeekDays(vacation.beginDate,vacation.endDate,1);
+				}
+				if(wday.tuesday) {
+					totalDays = totalDays - calculateWeekDays(vacation.beginDate,vacation.endDate,2);
+				}
+				if(wday.wednesday) {
+					totalDays = totalDays - calculateWeekDays(vacation.beginDate,vacation.endDate,3);
+				}
+				if(wday.thursday) {
+					totalDays = totalDays - calculateWeekDays(vacation.beginDate,vacation.endDate,4);
+				}
+				if(wday.friday) {
+					totalDays = totalDays - calculateWeekDays(vacation.beginDate,vacation.endDate,5);
+				}
+				if(wday.saturday) {
+					totalDays = totalDays - calculateWeekDays(vacation.beginDate,vacation.endDate,6);
+				}
+			}
+			if(wday.specialDates && wday.specialDates.length > 0) {
+				wday.specialDates.forEach(sd => {
+					if(sd >= vacation.beginDate && sd <= vacation.endDate) totalDays --;
+				});
+			}
+		} else {
+			console.log('No WeekDay object');
+		}
+
+		// console.log(totalDays);
+		return totalDays;
+	};
+
+	var query = {};
+	const vacationLabel = this.parent().vacationLabel;
+	if(vacationLabel) {
+		query.label = vacationLabel;
+	} else {
+		query.company = this.parent().company._id;
+	}
+	// console.log(query);
+	const WeekDay = require('./workDays');
+	var wday = await WeekDay.findOne(query);
+	if(wday) {
+		this.totalDays = calculateVacationDays(this,wday);
+	} else {
+		wday = await WeekDay.findOne({label:'default'});
+		if(wday) {
+			this.totalDays = calculateVacationDays(this,wday);
+		} else {
+			this.totalDays = calculateVacationDays(this);
+		}
+	}
+	this.processed = true;
 });
 
 const CompaniesSchema = new Schema({
@@ -128,8 +264,18 @@ const CompaniesSchema = new Schema({
 	reportingManager: {
 		type: ObjectId,
 		ref: 'users'
-	}
-},{_id: false});
+	},
+	vacationLabel: {
+		type: String
+	},
+	vacationHistory: [VacationSchema],
+	vacations: {}
+},{
+	_id: false,
+	id: false,
+	toJSON : {virtuals: true},
+	toObject: {virtuals: true}
+});
 
 const UserSchema = new Schema({
 	identifier: {

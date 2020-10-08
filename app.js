@@ -33,6 +33,7 @@ app.on('ready',() => {
 	const taxRegimeRoutes = require('./routes/taxRegimeRoutes');
 	const freshRoutes = require('./routes/requestRoutes');
 	const jobRoutes = require('./routes/jobRoutes');
+	const rulesRoutes = require('./routes/vacationRulesRoutes');
 
 	app.disable('x-powered-by');
 	/** Encabezados CORS */
@@ -71,6 +72,7 @@ app.on('ready',() => {
 	taxRegimeRoutes(app);
 	freshRoutes(app);
 	jobRoutes(app);
+	rulesRoutes(app);
 
 	app.use(function(req, res) {
 		res.status(StatusCodes.NOT_FOUND).json({

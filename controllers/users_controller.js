@@ -267,12 +267,7 @@ module.exports = {
 	}, // create
 
 	async getMyDetails(req,res) {
-		// const jm = require('js-meter');
-		// const m = new jm({
-		// 	isPrint: true,
-		// 	isKb: true
-		// });
-		const keyUser = res.locals.user;
+		var keyUser = res.locals.user;
 		delete keyUser.isAccountable;
 		delete keyUser.created;
 		delete keyUser.updated;
@@ -280,6 +275,16 @@ module.exports = {
 		delete keyUser.admin;
 		if(!keyUser.isOperator) {
 			delete keyUser.assignedCompanies;
+		}
+		// Generar datos de vacaciones
+		for(let i=0;i<keyUser.companies.length;i++) {
+			let company = keyUser.companies[i];
+			if(company.beginDate) {
+				const vacations = require('../shared/vacations').vacations;
+				const vacRes = await vacations(company);
+				// console.log(vacRes);
+				keyUser.companies[i].vacations = vacRes;
+			}
 		}
 		res.status(StatusCodes.OK).json(keyUser);
 	}, //getMyDetails
