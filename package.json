@@ -15,7 +15,7 @@
     "isomorphic-fetch": "^2.2.1",
     "js-meter": "^1.1.4",
     "jsonwebtoken": "^8.5.1",
-    "keypair": "^1.0.1",
+    "keypair": "^1.0.4",
     "mongodb-uri": "^0.9.7",
     "mongoose": "^5.10.6",
     "mongoose-sequence": "^5.2.2",
