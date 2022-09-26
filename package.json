@@ -21,7 +21,7 @@
     "mongoose-sequence": "^5.2.2",
     "multer": "^1.4.2",
     "nanoid": "^3.1.12",
-    "node-mailjet": "^3.3.1",
+    "node-mailjet": "^3.4.1",
     "redis": "^3.0.2",
     "secure-random-password": "^0.2.1",
     "socket.io": "^2.3.0",
